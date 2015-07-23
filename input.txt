@@ -1,0 +1,11 @@
+
+dx    		 =          1.0 
+
+
+# make sure to read the correct file
+
+filename = readme.h5
+
+init_file = test6.h5
+
+
