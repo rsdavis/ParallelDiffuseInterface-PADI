@@ -8,6 +8,9 @@
 #include "log.h"
 #include "mpigrid.hpp"
 #include "h5grid.hpp"
+#include "model.hpp"
+#include "preprocessor.hpp"
+
 
 void readParameters(std::map<std::string, std::string> &params)
 {
@@ -82,6 +85,12 @@ void readGlobalData(std::string filename,
     if (ny > 0) ndims = 2;
     if (nz > 0) ndims = 3;
 
+    if (ndims != SPF_NDIMS) {
+        FILE_LOG(logERROR) << "Data has dimensionality = " << ndims;
+        FILE_LOG(logERROR) << "Simulation has dimensionality = " << SPF_NDIMS;
+        MPI_Abort(MPI_COMM_WORLD, 0);
+    }
+
     /* Get List Of Names Of The Order Parameters From HDF5 File */
 
     err = h5.list("/", name_list);
@@ -134,14 +143,17 @@ int main(int argc, char ** argv)
 
     int err;
     int global_dims[3];
-    int local_dims[3];
+    int local_dims[3] = {1,1,1};
     int np_dims[3];
+
     double * global_data;
     double * local_data;
+    double * local_chem_pot;
+    double * local_mobility;
+
     int ndims;
-    char * op_names;
-    int num_op;
-    int nrows = 1;
+    char * phase_names;
+    int nphases;
     std::map<std::string, int> name_index;
 
 
@@ -165,33 +177,24 @@ int main(int argc, char ** argv)
 
     if (rank == 0) logParameters(params);
 
-
     // master reads initial configuration
 
     if (rank == 0) {
         std::vector<std::string> name_list;
         readGlobalData(params["init_file"], global_data, global_dims, ndims, name_list);
 
-        num_op = name_list.size();
-        op_names = new char [100*num_op];
-        for (int i=0; i<num_op; i++)
-            strncpy(op_names+i*100, name_list[i].c_str(), name_list[i].length());
+        nphases = name_list.size();
+        phase_names = new char [100*nphases];
+        for (int i=0; i<nphases; i++)
+            strncpy(phase_names+i*100, name_list[i].c_str(), name_list[i].length());
     }
 
 
     // broadcast names of order parameters
 
-    MPI_Bcast(&num_op, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    if (rank!=0) op_names = new char [100*num_op];
-    MPI_Bcast(op_names, num_op*100, MPI_CHAR, 0, MPI_COMM_WORLD);
-
-    // create map of names and index
-
-    for (int i=0; i<num_op; i++)
-    {
-        std::string name(op_names+i*100);
-        name_index[name] = i;
-    }
+    MPI_Bcast(&nphases, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    if (rank!=0) phase_names = new char [100*nphases];
+    MPI_Bcast(phase_names, nphases*100, MPI_CHAR, 0, MPI_COMM_WORLD);
 
     // setup grid
 
@@ -201,11 +204,88 @@ int main(int argc, char ** argv)
 
     MPIGrid grid;
     MPI_Dims_create(np, 2, np_dims);
-    err = grid.setup(MPI_COMM_WORLD, global_dims, np_dims, ndims, nrows, local_dims);
+    err = grid.setup(MPI_COMM_WORLD, global_dims, np_dims, ndims, SPF_NROWS, local_dims);
     if (err > 0) {
         FILE_LOG(logERROR) << "MPIGRID SETUP CODE: " << err;
         MPI_Abort(MPI_COMM_WORLD, 0);
     }
+
+    // allocate local data
+
+    int local_volume = 1;
+    int global_volume = 1;
+    for (int i=0; i<ndims; i++)
+    {
+        local_volume *= local_dims[i];
+        global_volume *= global_dims[i];
+    }
+
+    local_data = new double [local_volume*nphases];
+    local_chem_pot = new double [local_volume*nphases];
+    local_mobility = new double [local_volume*nphases];
+
+    // create map of names and index
+
+    for (int i=0; i<nphases; i++)
+    {
+        std::string name(phase_names+i*100);
+        name_index[name] = i;
+    }
+
+    // scatter and share data
+
+    for (int i=0; i<nphases; i++)
+        grid.scatter(global_data+global_volume*i, local_data+local_volume*i);
+
+    for (int i=0; i<nphases; i++)
+        grid.share(local_data + local_volume*i);
+
+    // create user friendly alias for data access
+
+    double ** data_alias = new double * [nphases]; 
+    double ** chem_pot_alias = new double * [nphases];
+    double ** mobility_alias = new double * [nphases];
+
+    for (int i=0; i<nphases; i++)
+    {
+        data_alias[i] = local_data + local_volume*i;
+        chem_pot_alias[i] = local_chem_pot + local_volume*i;
+        mobility_alias[i] = local_mobility + local_volume*i;
+    }
+
+
+    preprocess(local_data, local_dims, params, name_index);
+
+    // begin stepping in time
+
+    for (int istep=1; istep<=std::stoi(params["nsteps"]); istep++)
+    {
+        integrate(data_alias, chem_pot_alias, mobility_alias, local_dims);
+
+        for (int i=0; i<nphases; i++)
+            grid.share(local_data + local_volume*i);
+    }
+
+    for (int i=0; i<nphases; i++)
+        grid.gather(global_data+global_volume*i, local_data+local_volume*i);
+
+    if (rank == 0) {
+        H5Grid h5;
+        int nx = global_dims[0];
+        int ny = global_dims[1];
+        int nz = 0;
+        h5.open("out.h5", "w", nx, ny, nz);
+        std::string name(phase_names);
+        h5.write_dataset(name, global_data);
+        h5.close();
+    }
+
+    free(data_alias);
+    free(chem_pot_alias);
+    free(mobility_alias);
+    free(local_data);
+    free(local_chem_pot);
+    free(local_mobility);
 
     MPI_Finalize();
 

@@ -1,11 +1,13 @@
 
-dx    		 =          1.0 
+a2 = -1
+a4 = 1
+w = 1.0
+
+dx = 1.0
+dt = 0.01
 
 
-# make sure to read the correct file
-
-filename = readme.h5
-
-init_file = test6.h5
+init_file = spin_init.h5
+nsteps = 100000
 
 
