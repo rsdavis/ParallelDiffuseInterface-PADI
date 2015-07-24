@@ -30,11 +30,12 @@ class MPIGrid {
         MPI_Comm topology;      /// MPI Virtual Topology
 
         template<typename T>
-        void pack(T const * const __restrict__ data, T * const __restrict__ packed_data, int count, int block_length, int stride);
+        void pack_data(T const * const data, T * const pack, int * count, int * block_length, int * stride, int ndims);
         template<typename T>
-        void unpack(T * const __restrict__ data, T const * const __restrict__ packed_data, int count, int block_length, int stride);
+        void unpack_data(T * const data, T const * const pack, int * count, int * block_length, int * stride, int ndims);
         template<typename T>
         MPI_Datatype getMPI_Datatype();
+
 
     public:
 
@@ -54,15 +55,45 @@ class MPIGrid {
 
 };
 
+template<typename T>
+void MPIGrid :: pack_data(T const * const data, T * const pack, int * count, int * block_length, int * stride, int ndims)
+{
+    if (ndims == 1) {
+        memcpy(pack, data, count[0]*sizeof(double));
+        return;
+    }
+
+    for (int i=0; i<count[0]; i++)
+        pack_data(data+stride[0]*i, pack+block_length[0]*i, count+1, block_length+1, stride+1, ndims-1);
+}
+
+template<typename T>
+void MPIGrid :: unpack_data(T * const data, T const * const pack, int * count, int * block_length, int * stride, int ndims)
+{
+    if (ndims == 1) {
+        memcpy(data, pack, count[0]*sizeof(double));
+        return;
+    }
+
+    for (int i=0; i<count[0]; i++)
+        unpack_data(data+stride[0]*i, pack+block_length[0]*i, count+1, block_length+1, stride+1, ndims-1);
+}
+
+
 MPIGrid :: MPIGrid()
 {
+    m_local_dims = NULL;
+    m_global_dims = NULL;
+    m_np_dims = NULL;
 }
 
 MPIGrid :: ~MPIGrid()
 {
-    delete [] m_local_dims;
-    delete [] m_global_dims;;
-    delete [] m_np_dims;
+    if (m_np_dims != NULL) {
+        delete [] m_local_dims;
+        delete [] m_global_dims;;
+        delete [] m_np_dims;
+    }
 }
 
 template <typename T> 
@@ -74,33 +105,6 @@ MPI_Datatype MPIGrid :: getMPI_Datatype<int>() { return MPI_INT; }
 template <>
 MPI_Datatype MPIGrid :: getMPI_Datatype<float>() { return MPI_FLOAT; }
 
-
-template<typename T>
-void MPIGrid :: pack(T const * const __restrict__ data, T * const __restrict__ packed_data, int count, int block_length, int stride)
-{
-    size_t num = block_length * sizeof(T);
-
-    for (int i=0; i<count; i++)
-    {
-        void * source = (void *) (data + i*stride);
-        void * destination = (void *) (packed_data + i*block_length);
-        memcpy(destination, source, num);
-    }
-}
-
-template<typename T>
-void MPIGrid :: unpack(T * const __restrict__ data, T const * const __restrict__ packed_data, int count, int block_length, int stride)
-{
-    size_t num = block_length * sizeof(T);
-
-    for (int i=0; i<count; i++)
-    {
-        void * source = (void *) (packed_data + i*block_length);
-        void * destination = (void *) (data + i*stride);
-        memcpy(destination, source, num);
-    }
-
-}
 
 int MPIGrid :: setup(MPI_Comm comm_old, int const * const global_dims, int const * const np_dims, int ndims, int nrows, int * const local_dims)
 {
@@ -194,9 +198,9 @@ int MPIGrid :: scatter(T const * const __restrict__ global_data, T * const __res
 
     int source = 0;
     int tag = 1;
-    int block_length;
-    int stride;
-    int count;
+    int block_length[m_ndims];
+    int stride[m_ndims];
+    int count[m_ndims];
     int offset;
     
     int subdomain[m_ndims];
@@ -211,10 +215,10 @@ int MPIGrid :: scatter(T const * const __restrict__ global_data, T * const __res
     }
 
     // calculate number of contiguous chunks
-    count = 1;
-    for (int i=0; i<m_ndims-1; i++) count *= subdomain[i];
+    for (int i=0; i<m_ndims; i++) 
+        count[i] = subdomain[i];
 
-    T * packed_data = new T [subdomain_volume];
+    T * pack = new T [subdomain_volume];
 
     /* ============== master sends data ============= */
     if (m_rank == 0) {
@@ -227,8 +231,15 @@ int MPIGrid :: scatter(T const * const __restrict__ global_data, T * const __res
                 coord_stride[i] *= m_np_dims[j]*subdomain[j];
         }
 
-        block_length = subdomain[m_ndims-1];
-        stride = m_global_dims[m_ndims-1];
+
+        for (int i=0; i<m_ndims; i++) {
+            block_length[i] = 1;
+            stride[i] = 1;
+            for (int j=i+1; j<m_ndims; j++) {
+                block_length[i] *= subdomain[j];
+                stride[i] *= m_global_dims[j];
+            }
+        }
 
         for (int id=0; id<m_np; id++) {
 
@@ -239,8 +250,9 @@ int MPIGrid :: scatter(T const * const __restrict__ global_data, T * const __res
             offset = 0;
             for (int i=0; i<m_ndims; i++) offset += coords[i] * coord_stride[i];
 
-            pack(global_data+offset, packed_data, count, block_length, stride);
-            MPI_Isend(packed_data, subdomain_volume, getMPI_Datatype<T>(), id, tag, topology, &request);
+            pack_data(global_data+offset, pack, count, block_length, stride, m_ndims);
+
+            MPI_Isend(pack, subdomain_volume, getMPI_Datatype<T>(), id, tag, topology, &request);
         }
     }
 
@@ -255,13 +267,19 @@ int MPIGrid :: scatter(T const * const __restrict__ global_data, T * const __res
         offset += local_stride_i*m_nrows;
     }
 
-    block_length = subdomain[m_ndims-1];
-    stride = m_local_dims[m_ndims-1];
+    for (int i=0; i<m_ndims; i++) {
+        block_length[i] = 1;
+        stride[i] = 1;
+        for (int j=i+1; j<m_ndims; j++) {
+            block_length[i] *= subdomain[j];
+            stride[i] *= m_local_dims[j];
+        }
+    }
 
-    MPI_Recv(packed_data, subdomain_volume, getMPI_Datatype<T>(), source, tag, topology, &status);
-    unpack(local_data+offset, packed_data, count, block_length, stride);
+    MPI_Recv(pack, subdomain_volume, getMPI_Datatype<T>(), source, tag, topology, &status);
+    unpack_data(local_data+offset, pack, count, block_length, stride, m_ndims);
 
-    delete [] packed_data;
+    delete [] pack;
 
     return 0;
 }
@@ -288,9 +306,9 @@ int MPIGrid :: gather(T * const __restrict__ global_data, T const * const __rest
 
     int tag = 1;
     int destination = 0;
-    int count;
-    int block_length;
-    int stride;
+    int count[m_ndims];
+    int block_length[m_ndims];
+    int stride[m_ndims];
     int offset;
 
     int subdomain[m_ndims];
@@ -303,11 +321,18 @@ int MPIGrid :: gather(T * const __restrict__ global_data, T const * const __rest
         subdomain_volume *= subdomain[i];
     }
 
-    count = 1;
-    for (int i=0; i<m_ndims-1; i++) count *= subdomain[i];
+    for (int i=0; i<m_ndims; i++) 
+    {
+        count[i] = subdomain[i];
+        block_length[i] = 1;
+        stride[i] = 1;
+        for (int j=i+1; j<m_ndims; j++)
+        {
+            block_length[i] *= subdomain[j];
+            stride[i] *= m_local_dims[j];
+        }
+    }
 
-    block_length = subdomain[m_ndims-1];
-    stride = m_local_dims[m_ndims-1];
 
     offset = 0;
     for (int i=0; i<m_ndims; i++)
@@ -322,7 +347,7 @@ int MPIGrid :: gather(T * const __restrict__ global_data, T const * const __rest
     T * packed_recv = new T [subdomain_volume];
 
     /* ====================== EVERY PROCESS SENDS DATA ========================== */
-    pack(local_data + offset, packed_send, count, block_length, stride);
+    pack_data(local_data + offset, packed_send, count, block_length, stride, m_ndims);
     MPI_Isend(packed_send, subdomain_volume, getMPI_Datatype<T>(), destination, tag, topology, &request);
 
     /* ====================== MASTER RECEIVES DATA ========================== */
@@ -344,10 +369,15 @@ int MPIGrid :: gather(T * const __restrict__ global_data, T const * const __rest
             offset = 0;
             for (int i=0; i<m_ndims; i++) offset += coords[i] * coord_stride[i];
 
-            stride = m_global_dims[m_ndims-1];
+            for (int i=0; i<m_ndims; i++)
+            {
+                stride[i] = 1;
+                for (int j=i+1; j<m_ndims; j++)
+                    stride[i] *= m_global_dims[j];
+            }
 
             MPI_Recv(packed_recv, subdomain_volume, getMPI_Datatype<T>(), id, tag, topology, &status);
-            unpack(global_data+offset, packed_recv, count, block_length, stride);
+            unpack_data(global_data+offset, packed_recv, count, block_length, stride, m_ndims);
         }
 
     }
@@ -410,7 +440,9 @@ int MPIGrid :: share(T * const local_data)
         send_offset = (m_local_dims[i] - 2*m_nrows) * step; 
         recv_offset = 0;
 
-        pack(local_data+send_offset, packed_send, count, block_length, stride);
+        // pack data
+        for (int j=0; j<count; j++)
+            memcpy(packed_send+block_length*j, local_data+send_offset+stride*j, block_length*sizeof(T));
 
         MPI_Cart_shift(topology, i, 1, &source, &destination);
 
@@ -418,14 +450,18 @@ int MPIGrid :: share(T * const local_data)
                      packed_recv, count*block_length, getMPI_Datatype<T>(), source, tag,
                      topology, &status);
 
-        unpack(local_data+recv_offset, packed_recv, count, block_length, stride);
+        // unpack data
+        for (int j=0; j<count; j++)
+            memcpy(local_data+recv_offset+stride*j, packed_recv+block_length*j, block_length*sizeof(T));
 
         /* =========== SENDRECV NEGATIVE DIRECTION =================== */
 
         send_offset = m_nrows * step; 
         recv_offset = (m_local_dims[i] - m_nrows) * step;
 
-        pack(local_data+send_offset, packed_send, count, block_length, stride);
+        // pack data
+        for (int j=0; j<count; j++)
+            memcpy(packed_send+block_length*j, local_data+send_offset+stride*j, block_length*sizeof(T));
 
         MPI_Cart_shift(topology, i, -1, &source, &destination);
 
@@ -433,7 +469,9 @@ int MPIGrid :: share(T * const local_data)
                      packed_recv, count*block_length, getMPI_Datatype<T>(), source, tag,
                      topology, &status);
 
-        unpack(local_data+recv_offset, packed_recv, count, block_length, stride);
+        // unpack data
+        for (int j=0; j<count; j++)
+            memcpy(local_data+recv_offset+stride*j, packed_recv+block_length*j, block_length*sizeof(T));
 
         delete [] packed_send;
         delete [] packed_recv;

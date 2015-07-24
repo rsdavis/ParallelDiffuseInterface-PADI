@@ -6,11 +6,10 @@
 #include <ctime>
 
 #include "log.h"
-#include "mpigrid.hpp"
+#include "MPIGrid.hpp"
 #include "h5grid.hpp"
 #include "model.hpp"
 #include "preprocessor.hpp"
-
 
 void readParameters(std::map<std::string, std::string> &params)
 {
@@ -65,11 +64,11 @@ void logParameters(std::map<std::string, std::string> params)
 void readGlobalData(std::string filename, 
                     double *& global_data, 
                     int * global_dims, 
-                    int &ndims, 
                     std::vector<std::string> &name_list)
 {
     int err;
     int nx, ny, nz, vol;
+    int ndims;
 
     /* Open HDF5 Initial Configuration File */
 
@@ -107,7 +106,7 @@ void readGlobalData(std::string filename,
     global_dims[2] = nz;
 
     vol = 1;
-    for (int i=0; i<ndims; i++) vol *= global_dims[i];
+    for (int i=0; i<SPF_NDIMS; i++) vol *= global_dims[i];
 
     try {
         global_data = new double [vol*name_list.size()];
@@ -151,7 +150,6 @@ int main(int argc, char ** argv)
     double * local_chem_pot;
     double * local_mobility;
 
-    int ndims;
     char * phase_names;
     int nphases;
     std::map<std::string, int> name_index;
@@ -181,14 +179,13 @@ int main(int argc, char ** argv)
 
     if (rank == 0) {
         std::vector<std::string> name_list;
-        readGlobalData(params["init_file"], global_data, global_dims, ndims, name_list);
+        readGlobalData(params["init_file"], global_data, global_dims, name_list);
 
         nphases = name_list.size();
         phase_names = new char [100*nphases];
         for (int i=0; i<nphases; i++)
             strncpy(phase_names+i*100, name_list[i].c_str(), name_list[i].length());
     }
-
 
     // broadcast names of order parameters
 
@@ -198,23 +195,30 @@ int main(int argc, char ** argv)
 
     // setup grid
 
-    MPI_Bcast(&ndims, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&global_dims, 3, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&np_dims, 3, MPI_INT, 0, MPI_COMM_WORLD);
 
     MPIGrid grid;
-    MPI_Dims_create(np, 2, np_dims);
-    err = grid.setup(MPI_COMM_WORLD, global_dims, np_dims, ndims, SPF_NROWS, local_dims);
+    MPI_Dims_create(np, SPF_NDIMS, np_dims);
+    err = grid.setup(MPI_COMM_WORLD, global_dims, np_dims, SPF_NDIMS, SPF_NROWS, local_dims);
     if (err > 0) {
         FILE_LOG(logERROR) << "MPIGRID SETUP CODE: " << err;
         MPI_Abort(MPI_COMM_WORLD, 0);
+    }
+
+    if (rank == 0) {
+        FILE_LOG(logINFO) << "Number of Processors: " << np;
+        FILE_LOG(logINFO) << "Number of Dimensions: " << SPF_NDIMS;
+        FILE_LOG(logINFO) << "Global Grid Dimensions: " << global_dims[0] <<","<< global_dims[1] <<","<< global_dims[2];
+        FILE_LOG(logINFO) << "Processor Dimensions: " << np_dims[0] <<","<< np_dims[1] <<","<< np_dims[2];
+        FILE_LOG(logINFO) << "Local Grid Dimensions: " << local_dims[0] <<","<< local_dims[1] <<","<< local_dims[2] << "\n";
     }
 
     // allocate local data
 
     int local_volume = 1;
     int global_volume = 1;
-    for (int i=0; i<ndims; i++)
+    for (int i=0; i<SPF_NDIMS; i++)
     {
         local_volume *= local_dims[i];
         global_volume *= global_dims[i];
@@ -240,7 +244,7 @@ int main(int argc, char ** argv)
     for (int i=0; i<nphases; i++)
         grid.share(local_data + local_volume*i);
 
-    // create user friendly alias for data access
+    // create alias for more user-friendly data access
 
     double ** data_alias = new double * [nphases]; 
     double ** chem_pot_alias = new double * [nphases];
@@ -266,6 +270,8 @@ int main(int argc, char ** argv)
             grid.share(local_data + local_volume*i);
     }
 
+    postprocess(data_alias, chem_pot_alias, mobility_alias, local_dims);
+
     for (int i=0; i<nphases; i++)
         grid.gather(global_data+global_volume*i, local_data+local_volume*i);
 
@@ -273,7 +279,7 @@ int main(int argc, char ** argv)
         H5Grid h5;
         int nx = global_dims[0];
         int ny = global_dims[1];
-        int nz = 0;
+        int nz = global_dims[2];
         h5.open("out.h5", "w", nx, ny, nz);
         std::string name(phase_names);
         h5.write_dataset(name, global_data);

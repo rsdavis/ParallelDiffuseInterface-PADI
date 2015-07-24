@@ -4,10 +4,10 @@ a4 = 1
 w = 1.0
 
 dx = 1.0
-dt = 0.01
+dt = 0.001
 
 
 init_file = spin_init.h5
-nsteps = 100000
+nsteps = 10000
 
 
