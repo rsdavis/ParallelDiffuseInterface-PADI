@@ -12,7 +12,7 @@ class H5Grid {
         hid_t file_id;
         hsize_t dims[3];
 
-        void create_group(const char * dataset_name);
+        void create_group(std::string path);
         void parse (std::string attr_name, std::string &path, std::string &name);
 
     public:
@@ -30,26 +30,21 @@ H5Grid :: H5Grid () {
     file_id = 0;
 }
 
-void H5Grid :: create_group(const char * dataset_name)
+void H5Grid :: create_group(std::string path)
 {
-    char str[256];
-    char * pch;
-    char path[256] = "";
+    int start = 1;
+    int pos = 0;
+    if (path[0]!='/') path = "/" + path;
 
-    strncpy(str, dataset_name, 256);
-    pch = strtok(str, "/");
-    
-    while (pch != NULL)
+    while ((pos = path.find("/", start)) != std::string::npos)
     {
-        sprintf(path, "%s/%s", path, pch);
-        pch = strtok(NULL, "/");
-
-        htri_t group_exists = H5Lexists(file_id, path, H5P_DEFAULT);
-
-        if (pch!=NULL && group_exists==0) {
-            hid_t grp_id = H5Gcreate(file_id, path, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        std::string substr = path.substr(0, pos);
+        htri_t group_exists = H5Lexists(file_id, substr.c_str(), H5P_DEFAULT);
+        if (!group_exists) {
+            hid_t grp_id = H5Gcreate(file_id, substr.c_str() , H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
             H5Gclose(grp_id);
         }
+        start = pos+1;
     }
 }
 
@@ -99,7 +94,8 @@ int H5Grid :: open(std::string filename, std::string mode, int &nx, int &ny, int
         if (file_exists == NULL) return 3;
         else fclose(file_exists);
 
-        if (H5Fis_hdf5(filename.c_str()) < 1) return 4;
+        //this doesn't work for some reason
+        //if (H5Fis_hdf5(filename.c_str()) < 1) return 4;
 
         if (read)
             file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
@@ -163,7 +159,7 @@ int H5Grid :: write_dataset(std::string dataset_name, double * dataset)
     std::string name;
 
     // create groups in the path
-    create_group(dataset_name.c_str());
+    create_group(dataset_name);
 
     // check if dataset already exisits
     htri_t dataset_exists = H5Lexists(file_id, dataset_name.c_str(), H5P_DEFAULT);
@@ -239,7 +235,7 @@ int H5Grid :: set_attribute(std::string attr_name, int  attr_value)
     if (path.size() == 0) return 1;
     if (name.size() == 0) return 2;
 
-    create_group(attr_name.c_str());
+    create_group(attr_name);
     hid_t space_id = H5Screate(H5S_SCALAR);
     hid_t attr_id = H5Acreate_by_name(file_id, 
                               path.c_str(),
