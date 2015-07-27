@@ -11,6 +11,7 @@
 #include "H5Grid.hpp"
 #include "model.hpp"
 #include "preprocessor.hpp"
+#include "mpitimer.h"
 
 void readParameters(std::map<std::string, std::string> &params)
 {
@@ -136,6 +137,24 @@ std::string output_path(std::string phase_name, int num)
     return ss.str();
 }
 
+void updateLog(int istep, int nsteps, double elapsed_time)
+{
+    char buffer[80];
+    time_t current_time, eta;
+    struct tm * timeinfo;
+
+    double fraction_completed = ((double)istep) / nsteps;
+    double remaining_time = (1.0/fraction_completed -1.0)*elapsed_time;
+
+    time(&current_time);
+    eta = current_time + (int) remaining_time;
+
+    timeinfo = localtime(&eta);
+    strftime(buffer, 80, "%c", timeinfo);
+    FILE_LOG(logINFO) << (int) (fraction_completed*100) << "\% Complete, ETA: " << buffer;
+    //FILE_LOG(logINFO) << (int) (fraction_completed*100) << "\% Complete, ETA: " << asctime(timeinfo);
+}
+
 int main(int argc, char ** argv)
 {
 
@@ -157,6 +176,13 @@ int main(int argc, char ** argv)
     char * phase_names;
     int nphases;
     std::map<std::string, int> name_index;
+
+    mpitimer * comm_time = mpitimer_new();
+    mpitimer * comp_time = mpitimer_new();
+    mpitimer * io_time = mpitimer_new();
+    mpitimer * total_time = mpitimer_new();
+
+    mpitimer_start(total_time);
 
 
     MPI_Comm_size(MPI_COMM_WORLD, &np);
@@ -212,11 +238,13 @@ int main(int argc, char ** argv)
     }
 
     if (rank == 0) {
+        FILE_LOG(logINFO);
         FILE_LOG(logINFO) << "Number of Processors: " << np;
         FILE_LOG(logINFO) << "Number of Dimensions: " << SPF_NDIMS;
         FILE_LOG(logINFO) << "Global Grid Dimensions: " << global_dims[0] <<","<< global_dims[1] <<","<< global_dims[2];
         FILE_LOG(logINFO) << "Processor Dimensions: " << np_dims[0] <<","<< np_dims[1] <<","<< np_dims[2];
-        FILE_LOG(logINFO) << "Local Grid Dimensions: " << local_dims[0] <<","<< local_dims[1] <<","<< local_dims[2] << "\n";
+        FILE_LOG(logINFO) << "Local Grid Dimensions: " << local_dims[0] <<","<< local_dims[1] <<","<< local_dims[2];
+        FILE_LOG(logINFO);
     }
 
     // allocate local data
@@ -264,7 +292,7 @@ int main(int argc, char ** argv)
 
     if (rank==0) {
         H5Grid h5;
-        h5.open("out.h5", "w", global_dims[0], global_dims[1], global_dims[2]);
+        h5.open("strand.h5", "w", global_dims[0], global_dims[1], global_dims[2]);
         for (int i=0; i<nphases; i++)
         {
             std::string path = output_path(phase_names+i*100, 0);
@@ -281,37 +309,66 @@ int main(int argc, char ** argv)
     {
         FILE_LOG(logDEBUG) << "Step: " << istep;
 
+        mpitimer_start(comp_time);
         integrate(data_alias, chem_pot_alias, mobility_alias, local_dims);
+        mpitimer_stop(comp_time);
 
         FILE_LOG(logDEBUG) << "Share data";
+        mpitimer_start(comm_time);
         for (int i=0; i<nphases; i++)
             grid.share(local_phase + local_volume*i);
+        mpitimer_stop(comm_time);
 
         // output
 
         if (istep % std::stoi(params["output_frequency"]) == 0) {
+            mpitimer_start(io_time);
 
             FILE_LOG(logDEBUG) << "Gather data";
 
             for (int i=0; i<nphases; i++)
                 grid.gather(global_phase+global_volume*i, local_phase+local_volume*i);
 
+            if ( istep % (std::stoi(params["nsteps"])/10) == 0 && rank == 0)
+                updateLog(istep, std::stoi(params["nsteps"]), mpitimer_get_time(total_time));
+
 
             if (rank == 0) {
+                int stat;
                 FILE_LOG(logDEBUG) << "Master outputing data";
                 H5Grid h5;
-                h5.open("out.h5", "a", global_dims[0], global_dims[1], global_dims[2]);
+                h5.open("strand.h5", "a", global_dims[0], global_dims[1], global_dims[2]);
                 for (int i=0; i<nphases; i++)
                 {
                     std::string path = output_path(phase_names+i*100, istep/std::stoi(params["output_frequency"]));
-                    h5.write_dataset(path, global_phase + global_volume*i);
+                    stat = h5.write_dataset(path, global_phase + global_volume*i);
                 }
                 h5.close();
+                mpitimer_stop(io_time);
             }
         }
     }
 
+    FILE_LOG(logDEBUG) << "Postprocess";
     postprocess(data_alias, chem_pot_alias, mobility_alias, local_dims);
+
+    if (rank == 0) {
+        mpitimer_stop(total_time);
+
+        int total_seconds = (int) mpitimer_get_time(total_time);
+        int days = total_seconds / (60*60*24);
+        int hours = (total_seconds % (60*60*24)) / 3600;
+        int mins = ((total_seconds % (60*60*24)) % 3600) / 60;
+        int secs = ((total_seconds % (60*60*24)) % 3600) % 60;
+
+        FILE_LOG(logINFO);
+        FILE_LOG(logINFO) << "Computation Time (%):   " << mpitimer_get_time(comp_time) / mpitimer_get_time(total_time) * 100;
+        FILE_LOG(logINFO) << "Communication Time (%): " << mpitimer_get_time(comm_time) / mpitimer_get_time(total_time) * 100;
+        FILE_LOG(logINFO) << "Input/Output Time (%):  " << mpitimer_get_time(io_time) / mpitimer_get_time(total_time) * 100;
+        FILE_LOG(logINFO) << "Total Time (s):     " << mpitimer_get_time(total_time);
+        FILE_LOG(logINFO) << "Elapsed Time: " << days << " days, " << hours << " hours, " << mins << " minutes, " << secs << " seconds";
+    }
+
 
     delete [] data_alias;
     delete [] chem_pot_alias;
