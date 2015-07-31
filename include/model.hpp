@@ -2,7 +2,7 @@
 #include <iostream>
 #include <map>
 #include "preprocessor.hpp"
-#include "derivatives.h"
+#include "stencil.hpp"
 
 #if (SPF_NDIMS==1)
 #define for_loop_ijk(x) for (int i=SPF_NROWS-x;i<dims[0]-SPF_NROWS+x;i++)

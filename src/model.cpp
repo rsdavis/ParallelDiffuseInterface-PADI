@@ -9,7 +9,6 @@ namespace model
     double a2;
     double a4;
     double w;
-    double inv_dx_sq;
 }
 
 void preprocess(double ** phase, int * dims,
@@ -30,16 +29,14 @@ void preprocess(double ** phase, int * dims,
     model::a4 = std::stod(params["a4"]);
     model::w = std::stod(params["w"]);
 
-    model::inv_dx_sq = 1.0/(model::dx*model::dx);
-
 }
 
 void integrate(double ** phase, double ** chem_pot, double ** mobility, int * dims)
 {
     // int i, j, k; // reserved for looping, don't modify
 
-    Derivatives derivatives;
-    derivatives.setup(dims);
+    Stencil stencil;
+    stencil.setup(dims, model::dx);
 
     for_loop_ijk(1)
     {
@@ -47,7 +44,7 @@ void integrate(double ** phase, double ** chem_pot, double ** mobility, int * di
 
         double p = phase[model::phi][ndx];
 
-        double laplace = derivatives.laplacian_h2(phase[model::phi], ndx, model::inv_dx_sq);
+        double laplace = stencil.laplacian_h2(phase[model::phi], ndx);
 
         chem_pot[model::phi][ndx] = model::a2 * p 
                                   + model::a4 * p*p*p 
@@ -59,7 +56,7 @@ void integrate(double ** phase, double ** chem_pot, double ** mobility, int * di
     for_loop_ijk(0)
     {
         int ndx = calc_ijk_index();
-        phase[model::phi][ndx] += model::dt * derivatives.laplacian_h2(chem_pot[model::phi], ndx, model::inv_dx_sq);
+        phase[model::phi][ndx] += model::dt * stencil.laplacian_h2(chem_pot[model::phi], ndx);
     }
 }
 

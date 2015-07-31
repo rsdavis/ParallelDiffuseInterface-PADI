@@ -3,6 +3,8 @@
 
 #include "mpi.h"
 
+#include <fstream>
+
 /// MPIGrid is a class that enables the user to easily perform N-dimensional domain decomposition
 
 /**
@@ -218,7 +220,8 @@ int MPIGrid :: scatter(T const * const __restrict__ global_data, T * const __res
     for (int i=0; i<m_ndims; i++) 
         count[i] = subdomain[i];
 
-    T * pack = new T [subdomain_volume];
+    T * packed_send;
+    T * packed_recv = new T [subdomain_volume];
 
     /* ============== master sends data ============= */
     if (m_rank == 0) {
@@ -231,7 +234,6 @@ int MPIGrid :: scatter(T const * const __restrict__ global_data, T * const __res
                 coord_stride[i] *= m_np_dims[j]*subdomain[j];
         }
 
-
         for (int i=0; i<m_ndims; i++) {
             block_length[i] = 1;
             stride[i] = 1;
@@ -241,18 +243,17 @@ int MPIGrid :: scatter(T const * const __restrict__ global_data, T * const __res
             }
         }
 
+        packed_send = new T [subdomain_volume*m_np];
         for (int id=0; id<m_np; id++) {
 
             int coords[m_ndims];
             MPI_Cart_coords(topology, id, m_ndims, coords);
 
-            // calculate subdomain offset
             offset = 0;
             for (int i=0; i<m_ndims; i++) offset += coords[i] * coord_stride[i];
 
-            pack_data(global_data+offset, pack, count, block_length, stride, m_ndims);
-
-            MPI_Isend(pack, subdomain_volume, getMPI_Datatype<T>(), id, tag, topology, &request);
+            pack_data(global_data+offset, packed_send+id*subdomain_volume, count, block_length, stride, m_ndims);
+            MPI_Isend(packed_send+id*subdomain_volume, subdomain_volume, getMPI_Datatype<T>(), id, tag, topology, &request);
         }
     }
 
@@ -276,10 +277,12 @@ int MPIGrid :: scatter(T const * const __restrict__ global_data, T * const __res
         }
     }
 
-    MPI_Recv(pack, subdomain_volume, getMPI_Datatype<T>(), source, tag, topology, &status);
-    unpack_data(local_data+offset, pack, count, block_length, stride, m_ndims);
+    MPI_Recv(packed_recv, subdomain_volume, getMPI_Datatype<T>(), source, tag, topology, &status);
+    unpack_data(local_data+offset, packed_recv, count, block_length, stride, m_ndims);
+    MPI_Barrier(MPI_COMM_WORLD);
 
-    delete [] pack;
+    if (m_rank==0) delete [] packed_send;
+    delete [] packed_recv;
 
     return 0;
 }
