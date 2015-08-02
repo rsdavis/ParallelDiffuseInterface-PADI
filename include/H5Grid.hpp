@@ -9,15 +9,16 @@
 class H5Grid {
 
     private:
-        hid_t file_id;
-        hsize_t dims[3];
+        hid_t m_file_id;
+        hsize_t m_dims[3];
+        hsize_t m_ndims;
 
         void create_group(std::string path);
         void parse (std::string attr_name, std::string &path, std::string &name);
 
     public:
         H5Grid();
-        int open(std::string filename, std::string mode, int &nx, int &ny, int &nz);
+        int open(std::string filename, std::string mode, int * dims, int &ndims);
         int read_dataset(std::string dataset_name, double * dataset);
         int write_dataset(std::string dataset_name, double * dataset);
         int set_attribute(std::string attr_name, int attr_value);
@@ -27,7 +28,7 @@ class H5Grid {
 };
 
 H5Grid :: H5Grid () {
-    file_id = 0;
+    m_file_id = 0;
 }
 
 void H5Grid :: create_group(std::string path)
@@ -39,9 +40,9 @@ void H5Grid :: create_group(std::string path)
     while ((pos = path.find("/", start)) != std::string::npos)
     {
         std::string substr = path.substr(0, pos);
-        htri_t group_exists = H5Lexists(file_id, substr.c_str(), H5P_DEFAULT);
+        htri_t group_exists = H5Lexists(m_file_id, substr.c_str(), H5P_DEFAULT);
         if (!group_exists) {
-            hid_t grp_id = H5Gcreate(file_id, substr.c_str() , H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+            hid_t grp_id = H5Gcreate(m_file_id, substr.c_str() , H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
             H5Gclose(grp_id);
         }
         start = pos+1;
@@ -49,14 +50,13 @@ void H5Grid :: create_group(std::string path)
 }
 
 
-int H5Grid :: open(std::string filename, std::string mode, int &nx, int &ny, int &nz)
+int H5Grid :: open(std::string filename, std::string mode, int * dims, int &ndims)
 {
     /**
     @param filename Name of the hdf5 file
     @param mode of file access "r", "w", or "a"
-    @param nx number of grid points in x dimension
-    @param ny number of grid points in y dimension
-    @param nz number of grid points in z dimension
+    @param dims number of grid points in each dimension
+    @param ndims number of dimensions
     **/
 
     /**
@@ -70,6 +70,7 @@ int H5Grid :: open(std::string filename, std::string mode, int &nx, int &ny, int
     /** \error ERROR 4: file is not in hdf5 format */
 
     unsigned read, write, append;
+    hid_t space_id, attr_id;
 
     read = (mode == "r");
     write = (mode == "w");
@@ -79,15 +80,21 @@ int H5Grid :: open(std::string filename, std::string mode, int &nx, int &ny, int
     if ( (read || write || append) != 1) return 1;
 
     // check that a file is not already open
-    if (file_id != 0) return 2;
+    if (m_file_id != 0) return 2;
+
 
 
     if ( write ) {
-        file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        m_file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
-        set_attribute("/Nx", nx);
-        set_attribute("/Ny", ny);
-        set_attribute("/Nz", nz);
+        m_ndims = ndims;
+        for (int i=0; i<ndims; i++) m_dims[i] = dims[i];
+
+        space_id = H5Screate_simple(1, &m_ndims, NULL);
+        attr_id = H5Acreate(m_file_id, "DIMS", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
+        H5Awrite(attr_id, H5T_NATIVE_INT, dims);
+        H5Sclose(space_id);
+        H5Aclose(attr_id);
 
     } else if (read || append) {
         FILE * file_exists = fopen(filename.c_str(), "r");
@@ -98,19 +105,20 @@ int H5Grid :: open(std::string filename, std::string mode, int &nx, int &ny, int
         //if (H5Fis_hdf5(filename.c_str()) < 1) return 4;
 
         if (read)
-            file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+            m_file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
         if (append)
-            file_id = H5Fopen(filename.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+            m_file_id = H5Fopen(filename.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
 
-        get_attribute("/Nx", nx);
-        get_attribute("/Ny", ny);
-        get_attribute("/Nz", nz);
+        attr_id = H5Aopen(m_file_id, "DIMS", H5P_DEFAULT);
+        H5Aread(attr_id, H5T_NATIVE_INT, dims);
+        space_id = H5Aget_space(attr_id);
+        H5Sget_simple_extent_dims(space_id, &m_ndims, NULL);
+        H5Aclose(attr_id);
+        H5Sclose(space_id);
 
+        ndims = m_ndims;
+        for (int i=0; i<ndims; i++) m_dims[i] = dims[i];
     }
-
-    dims[0] = nx;
-    dims[1] = ny;
-    dims[2] = nz;
 
     return 0;
 }
@@ -130,7 +138,7 @@ int H5Grid :: read_dataset(std::string dataset_name, double * dataset)
     if (dataset_exists <= 0) return 1;
     */
 
-    data_id = H5Dopen(file_id, dataset_name.c_str(), H5P_DEFAULT);
+    data_id = H5Dopen(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
     H5Dread(data_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset);
 
     H5Dclose(data_id);
@@ -150,10 +158,6 @@ int H5Grid :: write_dataset(std::string dataset_name, double * dataset)
 
     hid_t dcpl_id, space_id, data_id;
     herr_t error;
-    int rank;
-
-    if (dims[2] == 0) rank = 2;
-    else rank = 3;
 
     std::string path;
     std::string name;
@@ -162,18 +166,18 @@ int H5Grid :: write_dataset(std::string dataset_name, double * dataset)
     create_group(dataset_name);
 
     // check if dataset already exisits
-    htri_t dataset_exists = H5Lexists(file_id, dataset_name.c_str(), H5P_DEFAULT);
+    htri_t dataset_exists = H5Lexists(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
 
     if (dataset_exists==0) { // create dataset
 
         // chunk for data compression
         dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        H5Pset_chunk(dcpl_id, rank, dims);
+        H5Pset_chunk(dcpl_id, m_ndims, m_dims);
         H5Pset_shuffle(dcpl_id);
         H5Pset_deflate(dcpl_id, 1);
 
-        space_id = H5Screate_simple(rank, dims, NULL);
-        data_id = H5Dcreate(file_id, 
+        space_id = H5Screate_simple(m_ndims, m_dims, NULL);
+        data_id = H5Dcreate(m_file_id, 
                             dataset_name.c_str(), 
                             H5T_NATIVE_DOUBLE, 
                             space_id, 
@@ -182,7 +186,7 @@ int H5Grid :: write_dataset(std::string dataset_name, double * dataset)
                             H5P_DEFAULT);
 
     } else { // dataset_exists, just open and overwrite data
-        data_id = H5Dopen(file_id, dataset_name.c_str(), H5P_DEFAULT);
+        data_id = H5Dopen(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
     }
 
     error = H5Dwrite(data_id,
@@ -237,7 +241,7 @@ int H5Grid :: set_attribute(std::string attr_name, int  attr_value)
 
     create_group(attr_name);
     hid_t space_id = H5Screate(H5S_SCALAR);
-    hid_t attr_id = H5Acreate_by_name(file_id, 
+    hid_t attr_id = H5Acreate_by_name(m_file_id, 
                               path.c_str(),
                               name.c_str(), 
                               H5T_NATIVE_INT, 
@@ -268,9 +272,9 @@ int H5Grid :: get_attribute(std::string attr_name, int &attr_value)
 
     parse(attr_name, path, name);
 
-    if (H5Aexists_by_name(file_id, path.c_str(), name.c_str(), H5P_DEFAULT) <= 0) return 1;
+    if (H5Aexists_by_name(m_file_id, path.c_str(), name.c_str(), H5P_DEFAULT) <= 0) return 1;
 
-    attr_id = H5Aopen_by_name(file_id, path.c_str(), name.c_str(), H5P_DEFAULT, H5P_DEFAULT);
+    attr_id = H5Aopen_by_name(m_file_id, path.c_str(), name.c_str(), H5P_DEFAULT, H5P_DEFAULT);
     H5Aread(attr_id, H5T_NATIVE_INT, &attr_value);
 
     H5Aclose(attr_id);
@@ -291,7 +295,7 @@ int H5Grid :: list(std::string path, std::vector<std::string> &list)
 
     // need to implement group existence check
 
-    group_id = H5Gopen(file_id, path.c_str(), H5P_DEFAULT);
+    group_id = H5Gopen(m_file_id, path.c_str(), H5P_DEFAULT);
     H5Gget_info(group_id, &group_info);
 
     list.resize(group_info.nlinks);
@@ -313,12 +317,12 @@ int H5Grid :: close()
 {
     /** \error ERROR 1: there is no file to close **/
 
-    if (file_id == 0) {
+    if (m_file_id == 0) {
         // no file opened
         return 1;
     } else {
-        H5Fclose(file_id);
-        file_id = 0;
+        H5Fclose(m_file_id);
+        m_file_id = 0;
     }
 
     return 0;

@@ -74,8 +74,10 @@ void readGlobalData(std::string filename,
 
     /* Open HDF5 Initial Configuration File */
 
+    FILE_LOG(logDEBUG) << "Reading Initial Configuration file = " << filename;
+
     H5Grid h5;
-    err = h5.open(filename, "r", global_dims[0], global_dims[1], global_dims[2]);
+    err = h5.open(filename, "r", global_dims, ndims);
 
     if (err > 0) {
         FILE_LOG(logERROR) << "Error opening file " << filename;
@@ -83,8 +85,8 @@ void readGlobalData(std::string filename,
         MPI_Abort(MPI_COMM_WORLD, 0);
     }
 
-    if (global_dims[1] > 0) ndims = 2;
-    if (global_dims[2] > 0) ndims = 3;
+    FILE_LOG(logDEBUG) << "global_dims[0]=" << global_dims[0];
+    FILE_LOG(logDEBUG) << "global_dims[1]=" << global_dims[1];
 
     if (ndims != SPF_NDIMS) {
         FILE_LOG(logERROR) << "Data has dimensionality = " << ndims;
@@ -105,6 +107,8 @@ void readGlobalData(std::string filename,
 
     vol = 1;
     for (int i=0; i<SPF_NDIMS; i++) vol *= global_dims[i];
+
+    FILE_LOG(logDEBUG) << "Allocating global data: " << vol;
 
     try {
         global_phase = new double [vol*name_list.size()];
@@ -292,7 +296,8 @@ int main(int argc, char ** argv)
 
     if (rank==0) {
         H5Grid h5;
-        h5.open("strand.h5", "w", global_dims[0], global_dims[1], global_dims[2]);
+        int ndims = SPF_NDIMS;
+        h5.open("strand.h5", "w", global_dims, ndims);
         for (int i=0; i<nphases; i++)
         {
             std::string path = output_path(phase_names+i*100, 0);
@@ -310,7 +315,7 @@ int main(int argc, char ** argv)
         FILE_LOG(logDEBUG) << "Step: " << istep;
 
         mpitimer_start(comp_time);
-        integrate(data_alias, chem_pot_alias, mobility_alias, local_dims);
+        kernel(data_alias, chem_pot_alias, mobility_alias, local_dims);
         mpitimer_stop(comp_time);
 
         FILE_LOG(logDEBUG) << "Share data";
@@ -335,9 +340,10 @@ int main(int argc, char ** argv)
 
             if (rank == 0) {
                 int stat;
+                int ndims = SPF_NDIMS;
                 FILE_LOG(logDEBUG) << "Master outputing data";
                 H5Grid h5;
-                h5.open("strand.h5", "a", global_dims[0], global_dims[1], global_dims[2]);
+                h5.open("strand.h5", "a", global_dims, ndims);
                 for (int i=0; i<nphases; i++)
                 {
                     std::string path = output_path(phase_names+i*100, istep/std::stoi(params["output_frequency"]));

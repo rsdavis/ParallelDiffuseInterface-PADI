@@ -1,5 +1,5 @@
 
-debug = 2
+debug = 3
 
 mpi = /Volumes/DATA/Software/openmpi/1.8.4
 hdf5 = /usr/local/Cellar/hdf5/1.8.14

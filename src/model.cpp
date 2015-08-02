@@ -11,6 +11,9 @@ namespace model
     double w;
 }
 
+
+
+
 void preprocess(double ** phase, int * dims,
                 std::map<std::string, std::string> params,
                 std::map<std::string, int> name_index)
@@ -22,16 +25,16 @@ void preprocess(double ** phase, int * dims,
 
     // unpack model parameters
 
-    model::dx = std::stod(params["dx"]);
-    model::dt = std::stod(params["dt"]);
+    unpack_parameter(model::dx, "dx", params);
+    unpack_parameter(model::dt, "dt", params);
 
-    model::a2 = std::stod(params["a2"]);
-    model::a4 = std::stod(params["a4"]);
-    model::w = std::stod(params["w"]);
+    unpack_parameter(model::a2, "a2", params);
+    unpack_parameter(model::a4, "a4", params);
+    unpack_parameter(model::w,  "w", params);
 
 }
 
-void integrate(double ** phase, double ** chem_pot, double ** mobility, int * dims)
+void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
 {
     // int i, j, k; // reserved for looping, don't modify
 
