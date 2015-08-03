@@ -44,7 +44,7 @@ class MPIGrid {
         MPIGrid();
         ~MPIGrid();
 
-        int setup(MPI_Comm comm, int const * const global_dims, int const * const np_dims, int ndims, int nrows, int * const local_dims);
+        int setup(MPI_Comm comm, int const * const global_dims, int * np_dims, int ndims, int nrows, int * const local_dims);
 
         template <typename T>
         int scatter(T const * const __restrict__ global_data, T * const __restrict__ local_data);
@@ -108,7 +108,7 @@ template <>
 MPI_Datatype MPIGrid :: getMPI_Datatype<float>() { return MPI_FLOAT; }
 
 
-int MPIGrid :: setup(MPI_Comm comm_old, int const * const global_dims, int const * const np_dims, int ndims, int nrows, int * const local_dims)
+int MPIGrid :: setup(MPI_Comm comm_old, int const * const global_dims, int * np_dims, int ndims, int nrows, int * const local_dims)
 {
 
     /// Setup a grid and store all the information needed for communication

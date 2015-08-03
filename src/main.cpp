@@ -5,6 +5,7 @@
 #include <iostream>
 #include <iomanip>
 #include <ctime>
+#include <algorithm> // std::remove
 
 #include "log.h"
 #include "MPIGrid.hpp"
@@ -155,7 +156,7 @@ void updateLog(int istep, int nsteps, double elapsed_time)
 
     timeinfo = localtime(&eta);
     strftime(buffer, 80, "%c", timeinfo);
-    FILE_LOG(logINFO) << (int) (fraction_completed*100) << "\% Complete, ETA: " << buffer;
+    FILE_LOG(logINFO) << (int) (fraction_completed*100) << "% Complete, ETA: " << buffer;
     //FILE_LOG(logINFO) << (int) (fraction_completed*100) << "\% Complete, ETA: " << asctime(timeinfo);
 }
 
@@ -234,6 +235,7 @@ int main(int argc, char ** argv)
     MPI_Bcast(&np_dims, 3, MPI_INT, 0, MPI_COMM_WORLD);
 
     MPIGrid grid;
+    for (int i=0; i<SPF_NDIMS; i++) np_dims[i] = 0;
     MPI_Dims_create(np, SPF_NDIMS, np_dims);
     err = grid.setup(MPI_COMM_WORLD, global_dims, np_dims, SPF_NDIMS, SPF_NROWS, local_dims);
     if (err > 0) {

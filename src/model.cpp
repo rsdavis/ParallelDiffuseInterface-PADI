@@ -12,8 +12,6 @@ namespace model
 }
 
 
-
-
 void preprocess(double ** phase, int * dims,
                 std::map<std::string, std::string> params,
                 std::map<std::string, int> name_index)
@@ -30,7 +28,7 @@ void preprocess(double ** phase, int * dims,
 
     unpack_parameter(model::a2, "a2", params);
     unpack_parameter(model::a4, "a4", params);
-    unpack_parameter(model::w,  "w", params);
+    unpack_parameter(model::w,   "w", params);
 
 }
 
