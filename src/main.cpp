@@ -1,4 +1,44 @@
 
+/*! \mainpage Simple Phase Field
+
+    \section Introduction
+
+    Simple Phase Field is a project created to run phase field simulations. 
+    The idea is that the user programs a compute "kernel" for their specific model.
+    This kernel plugs into the larger code base, which handles parallelization, input/output, logging, etc.
+    It is designed to be as simple and easy as possible, while still supporting the standard types of phase field models.
+    The code is written in c++.
+
+    The phase field features include:
+        - Support for 2D and 3D systems
+        - Any number of order parameter designated by names
+        - Any number of user defined input parameters
+
+    The computational features include:
+        - HDF5 data storage
+        - Parameter file input
+        - Multidimensional domain decomposition with MPI
+        - Error handling / event logging
+        - Many preprogrammed stencil operations 
+
+    \section Requirements
+
+    SimplePhaseField requires both MPI and HDF5 in order to compile.
+    It also requires a compiler that supports the c++11 standard.
+
+    \section Install
+
+    Begin by modifying the Makefile so that the variables (mpi) and (hdf5) point to the install paths on your system. Then run make.
+
+    \section Test
+
+    In the test directory, their is an input file and initial configuration prepared to run a simple cahn-hilliard type phase field model to simulate spinodal decomposition on a 256x256 grid. cd to the test directory and run "mpirun -np 4 ./spf". You can modify simulation and parameter values through the input file.
+
+    \section Usage
+
+
+*/
+
 #include <map>
 #include <fstream>
 #include <string>
