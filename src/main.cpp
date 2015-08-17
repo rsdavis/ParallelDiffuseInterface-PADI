@@ -244,7 +244,7 @@ int main(int argc, char ** argv)
         nphases = name_list.size();
         phase_names = new char [100*nphases];
         for (int i=0; i<nphases; i++)
-            strncpy(phase_names+i*100, name_list[i].c_str(), name_list[i].length());
+            strncpy(phase_names+i*100, name_list[i].c_str(), 100);
     }
 
     // broadcast names of order parameters
