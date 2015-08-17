@@ -201,7 +201,7 @@ int main(int argc, char ** argv)
     char * phase_names;
     int nphases;
 
-    std::map<std::string, int> name_index;
+    std::map<std::string, int> phase_index;
     std::vector<int> output_phase;
     std::vector<int> output_mobility;
     std::vector<int> output_chem_pot;
@@ -304,7 +304,7 @@ int main(int argc, char ** argv)
     for (int i=0; i<nphases; i++)
     {
         std::string name(phase_names+i*100);
-        name_index[name] = i;
+        phase_index[name] = i;
 
         output_phase[i] = 0;
         output_mobility[i] = 0;
@@ -351,7 +351,7 @@ int main(int argc, char ** argv)
         h5.close();
     }
 
-    preprocess(data_alias, local_dims, params, name_index);
+    preprocess(data_alias, local_dims, params, phase_index);
 
     // begin stepping in time
 

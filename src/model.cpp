@@ -3,7 +3,6 @@
 
 namespace model
 {
-
     /** 
     The model namespace includes variable definitions and data indices.
     It enables the parameters to be used 'globally' within this model file.
@@ -25,29 +24,29 @@ namespace model
 void preprocess(double ** phase,  // order parameter data
                 int * dims,       // system dimensions
                 std::map<std::string, std::string> params, // input file parameters
-                std::map<std::string, int> name_index)     // phase indices
+                std::map<std::string, int> phase_index)     // phase indices
 {
 
     /**
     Preprocess is only called once, before the time-stepping begins.
     It is used primarily for unpacking parameters from the input file and
     getting the index to access each order parameter.
-    It can also be used to allocate additional data storage and 
+    Preprocess can also be used to allocate additional data storage and 
     calculate model-specific data that will be constant throughout the simulation.
     */
 
     // unpack phase index
 
-    model::phi = name_index["phi"];
+    unpack(phase_index, "phi", model::phi);
 
     // unpack model parameters
 
-    unpack_parameter(model::dx, "dx", params);
-    unpack_parameter(model::dt, "dt", params);
+    unpack(params, "dx", model::dx);
+    unpack(params, "dt", model::dt);
 
-    unpack_parameter(model::a2, "a2", params);
-    unpack_parameter(model::a4, "a4", params);
-    unpack_parameter(model::w,   "w", params);
+    unpack(params, "a2", model::a2);
+    unpack(params, "a4", model::a4);
+    unpack(params,  "w", model::w );
 
 }
 

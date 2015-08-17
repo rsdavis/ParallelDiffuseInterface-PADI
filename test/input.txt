@@ -9,9 +9,9 @@ dt = 0.01
 
 
 init_file = spin_init.h5
-nsteps = 1000
+nsteps = 10000
 
-output_frequency = 500
+output_frequency = 1000
 
 output_phase = phi
 output_chem_pot =
