@@ -74,6 +74,7 @@ void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
 
     The stencil object includes common finite differencing operations. 
     A setup routine must be called in order to determine indexing values.
+    Any operations involving neighbor grid points should be implemented in Stencil.
 
     Don't modify i,j,k variables, they are used for looping.
 

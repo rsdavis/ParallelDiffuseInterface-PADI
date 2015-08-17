@@ -1,44 +1,4 @@
 
-/*! \mainpage Simple Phase Field
-
-    \section Introduction
-
-    Simple Phase Field is a project created to run phase field simulations. 
-    The idea is that the user programs a compute "kernel" for their specific model.
-    This kernel plugs into the larger code base, which handles parallelization, input/output, logging, etc.
-    It is designed to be as simple and easy as possible, while still supporting the standard types of phase field models.
-    The code is written in c++.
-
-    The phase field features include:
-        - Support for 2D and 3D systems
-        - Any number of order parameter designated by names
-        - Any number of user defined input parameters
-
-    The computational features include:
-        - HDF5 data storage
-        - Parameter file input
-        - Multidimensional domain decomposition with MPI
-        - Error handling / event logging
-        - Many preprogrammed stencil operations 
-
-    \section Requirements
-
-    SimplePhaseField requires both MPI and HDF5 in order to compile.
-    It also requires a compiler that supports the c++11 standard.
-
-    \section Install
-
-    Begin by modifying the Makefile so that the variables (mpi) and (hdf5) point to the install paths on your system. Then run make.
-
-    \section Test
-
-    In the test directory, their is an input file and initial configuration prepared to run a simple cahn-hilliard type phase field model to simulate spinodal decomposition on a 256x256 grid. cd to the test directory and run "mpirun -np 4 ./spf". You can modify simulation and parameter values through the input file.
-
-    \section Usage
-
-
-*/
-
 #include <map>
 #include <fstream>
 #include <string>
@@ -54,8 +14,28 @@
 #include "preprocessor.hpp"
 #include "mpitimer.h"
 
+std::vector<std::string> parse_by_comma(std::string str)
+{
+    std::stringstream ss(str);
+    std::vector<std::string> result;
+    while (ss.good())
+    {
+        std::string substr;
+        std::getline( ss, substr, ',' );
+        result.push_back( substr );
+    }
+    return result;
+}
+
 void readParameters(std::map<std::string, std::string> &params)
 {
+    /** 
+    This function parses the input file.
+    It reads a key-value pair from any line involving an "=" sign.
+    All key-value are stored as string in params for use later.
+    Comment lines begin with "#"
+    */
+
     std::ifstream input("input.txt");
     std::string line;
 
@@ -220,7 +200,11 @@ int main(int argc, char ** argv)
 
     char * phase_names;
     int nphases;
+
     std::map<std::string, int> name_index;
+    std::vector<int> output_phase;
+    std::vector<int> output_mobility;
+    std::vector<int> output_chem_pot;
 
     mpitimer * comm_time = mpitimer_new();
     mpitimer * comp_time = mpitimer_new();
@@ -308,11 +292,30 @@ int main(int argc, char ** argv)
     local_mobility = new double [local_volume*nphases];
 
     // create map of names and index
+    std::vector<std::string> out_p = parse_by_comma(params["output_phase"]);
+    std::vector<std::string> out_m = parse_by_comma(params["output_mobility"]);
+    std::vector<std::string> out_c = parse_by_comma(params["output_chem_pot"]);
+
+    output_phase.resize(nphases);
+    output_mobility.resize(nphases);
+    output_chem_pot.resize(nphases);
+
 
     for (int i=0; i<nphases; i++)
     {
         std::string name(phase_names+i*100);
         name_index[name] = i;
+
+        output_phase[i] = 0;
+        output_mobility[i] = 0;
+        output_chem_pot[i] = 0;
+
+        if (std::find(out_p.begin(), out_p.end(), name) != out_p.end()) 
+            output_phase[i] = 1;
+        if (std::find(out_m.begin(), out_m.end(), name) != out_m.end()) 
+            output_mobility[i] = 1;
+        if (std::find(out_c.begin(), out_c.end(), name) != out_c.end()) 
+            output_chem_pot[i] = 1;
     }
 
     // scatter and share data
@@ -367,34 +370,92 @@ int main(int argc, char ** argv)
         mpitimer_stop(comm_time);
 
         // output
-
         if (istep % std::stoi(params["output_frequency"]) == 0) {
+
+            FILE_LOG(logDEBUG) << "Output";
+            
+            H5Grid h5;
+            int stat, ndims = SPF_NDIMS;
+            double * buffer; 
+            int frame;
             mpitimer_start(io_time);
 
-            FILE_LOG(logDEBUG) << "Gather data";
+            if (rank == 0) h5.open("strand.h5", "a", global_dims, ndims);
 
-            for (int i=0; i<nphases; i++)
+            buffer = new double [global_volume];
+            frame = istep / std::stoi(params["output_frequency"]);
+
+            // cycle through order parameters
+            for (int i=0; i<nphases; i++) {
+
+                std::string name = phase_names+i*100;
+
+                // output phases
                 grid.gather(global_phase+global_volume*i, local_phase+local_volume*i);
+                if (output_phase[i] && rank == 0) {
+                        std::string path = output_path(name, frame);
+                        stat = h5.write_dataset(path, global_phase+global_volume*i);
+                }
 
-            if ( istep % (std::stoi(params["nsteps"])/10) == 0 && rank == 0)
-                updateLog(istep, std::stoi(params["nsteps"]), mpitimer_get_time(total_time));
+                // output mobility
+                if (output_mobility[i]) {
+                    grid.gather(buffer, local_mobility+local_volume*i);
+                    if (rank==0) {
+                        std::string mod = "_mobility";
+                        std::string path = output_path(name+mod, frame);
+                        stat = h5.write_dataset(path, buffer);
+                    }
+                }
 
+                // output_chem_pot
+                if (output_chem_pot[i]) {
+                    grid.gather(buffer, local_chem_pot+local_volume*i);
+                    if (rank==0) {
+                        std::string mod = "_chem_pot";
+                        std::string path = output_path(name+mod, frame);
+                        stat = h5.write_dataset(path, buffer);
+                    }
+                }
+            }
 
+            if (rank == 0) h5.close();
+
+            /*
             if (rank == 0) {
-                int stat;
-                int ndims = SPF_NDIMS;
-                FILE_LOG(logDEBUG) << "Master outputing data";
-                H5Grid h5;
-                h5.open("strand.h5", "a", global_dims, ndims);
+                H5Grid chckpt;
+                stat = chckpt.open("checkpoint.h5", "w", global_dims, ndims);
+                if (stat != 0) {FILE_LOG(logERROR) << "H5Grid open checkpoint: " << stat;}
                 for (int i=0; i<nphases; i++)
                 {
-                    std::string path = output_path(phase_names+i*100, istep/std::stoi(params["output_frequency"]));
-                    stat = h5.write_dataset(path, global_phase + global_volume*i);
+                    std::string name = phase_names+i*100;
+                    std::cout << name << std::endl;
+                    stat = chckpt.write_dataset(name, global_phase+global_volume*i);
+                    if (stat != 0) {FILE_LOG(logERROR) << "H5Grid write checkpoint: " << stat;}
                 }
-                h5.close();
-                mpitimer_stop(io_time);
+                stat = chckpt.close();
+                    if (stat != 0) {FILE_LOG(logERROR) << "H5Grid close checkpoint: " << stat;}
             }
+            */
+
+            mpitimer_stop(io_time);
+        } // end output
+
+    } // end timesteping
+
+    if (rank == 0) {
+        H5Grid chckpt;
+        int ndims = SPF_NDIMS;
+        int stat = chckpt.open("checkpoint.h5", "w", global_dims, ndims);
+        if (stat != 0) {FILE_LOG(logERROR) << "H5Grid open checkpoint: " << stat;}
+        for (int i=0; i<nphases; i++)
+        {
+            std::string name = phase_names+i*100;
+            std::cout << name << std::endl;
+            stat = chckpt.write_dataset(name, global_phase+global_volume*i);
+            if (stat != 0) {FILE_LOG(logERROR) << "H5Grid write checkpoint: " << stat;}
         }
+        stat = chckpt.close();
+        if (stat != 0) {FILE_LOG(logERROR) << "H5Grid close checkpoint: " << stat;}
     }
 
     FILE_LOG(logDEBUG) << "Postprocess";
