@@ -53,7 +53,6 @@ void preprocess(double ** phase,  // order parameter data
 void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
 {
     /**
-
     The kernel is run at every timestep and should include all calculations 
     required by the model in order to integrate the order parameters.
 
@@ -76,7 +75,6 @@ void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
     Any operations involving neighbor grid points should be implemented in Stencil.
 
     Don't modify i,j,k variables, they are used for looping.
-
     */
 
     Stencil stencil;
