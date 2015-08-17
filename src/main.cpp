@@ -168,7 +168,7 @@ void updateLog(int istep, int nsteps, double elapsed_time)
     time_t current_time, eta;
     struct tm * timeinfo;
 
-    double fraction_completed = ((double)istep) / nsteps;
+    double fraction_completed = ((double)istep) / ((double)nsteps);
     double remaining_time = (1.0/fraction_completed -1.0)*elapsed_time;
 
     time(&current_time);
@@ -177,7 +177,6 @@ void updateLog(int istep, int nsteps, double elapsed_time)
     timeinfo = localtime(&eta);
     strftime(buffer, 80, "%c", timeinfo);
     FILE_LOG(logINFO) << (int) (fraction_completed*100) << "% Complete, ETA: " << buffer;
-    //FILE_LOG(logINFO) << (int) (fraction_completed*100) << "\% Complete, ETA: " << asctime(timeinfo);
 }
 
 int main(int argc, char ** argv)
@@ -369,6 +368,9 @@ int main(int argc, char ** argv)
             grid.share(local_phase + local_volume*i);
         mpitimer_stop(comm_time);
 
+        if (rank==0 && std::stoi(params["nsteps"]) > 10 && istep % (std::stoi(params["nsteps"])/10) == 0)
+            updateLog(istep, std::stoi(params["nsteps"]), mpitimer_get_time(total_time));
+
         // output
         if (istep % std::stoi(params["output_frequency"]) == 0) {
 
@@ -420,23 +422,6 @@ int main(int argc, char ** argv)
 
             if (rank == 0) h5.close();
 
-            /*
-            if (rank == 0) {
-                H5Grid chckpt;
-                stat = chckpt.open("checkpoint.h5", "w", global_dims, ndims);
-                if (stat != 0) {FILE_LOG(logERROR) << "H5Grid open checkpoint: " << stat;}
-                for (int i=0; i<nphases; i++)
-                {
-                    std::string name = phase_names+i*100;
-                    std::cout << name << std::endl;
-                    stat = chckpt.write_dataset(name, global_phase+global_volume*i);
-                    if (stat != 0) {FILE_LOG(logERROR) << "H5Grid write checkpoint: " << stat;}
-                }
-                stat = chckpt.close();
-                    if (stat != 0) {FILE_LOG(logERROR) << "H5Grid close checkpoint: " << stat;}
-            }
-            */
-
             mpitimer_stop(io_time);
         } // end output
 
@@ -450,7 +435,6 @@ int main(int argc, char ** argv)
         for (int i=0; i<nphases; i++)
         {
             std::string name = phase_names+i*100;
-            std::cout << name << std::endl;
             stat = chckpt.write_dataset(name, global_phase+global_volume*i);
             if (stat != 0) {FILE_LOG(logERROR) << "H5Grid write checkpoint: " << stat;}
         }
