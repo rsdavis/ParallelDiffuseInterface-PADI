@@ -1,19 +1,22 @@
 
+Wa = 1.0
+Wb = 1.0
+Wc = 1.0
 
-w = 1.0
-a2 = -1.0
-a4 = 1.0
+sigma_ab = 0.8
+sigma_ac = 1.0
+sigma_bc = 1.0
 
 dx = 1.0
 dt = 0.01
 
 
-init_file = spin_init.h5
-nsteps = 100000
+init_file = droplet.h5
+nsteps = 10000
 
-output_frequency = 10000
+output_frequency = 1000
 
-output_phase = phi
+output_phase = a,b,c
 output_chem_pot =
 output_mobility =
 

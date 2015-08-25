@@ -9,12 +9,19 @@ namespace model
     These variables are referenced using model::variable.
     */
 
-    int phi;
+    int a_ndx, b_ndx, c_ndx;
+
     double dx;
     double dt;
-    double a2;
-    double a4;
-    double w;
+
+    double Wa;
+    double Wb;
+    double Wc;
+
+    double sigma_ab;
+    double sigma_ac;
+    double sigma_bc;
+
 }
 
 
@@ -37,16 +44,22 @@ void preprocess(double ** phase,  // order parameter data
 
     // unpack phase index
 
-    unpack(phase_index, "phi", model::phi);
+    unpack(phase_index, "a", model::a_ndx);
+    unpack(phase_index, "b", model::b_ndx);
+    unpack(phase_index, "c", model::c_ndx);
 
     // unpack model parameters
 
     unpack(params, "dx", model::dx);
     unpack(params, "dt", model::dt);
 
-    unpack(params, "a2", model::a2);
-    unpack(params, "a4", model::a4);
-    unpack(params,  "w", model::w );
+    unpack(params, "Wa", model::Wa);
+    unpack(params, "Wb", model::Wb);
+    unpack(params, "Wc", model::Wc);
+
+    unpack(params, "sigma_ab", model::sigma_ab);
+    unpack(params, "sigma_ac", model::sigma_ac);
+    unpack(params, "sigma_bc", model::sigma_bc);
 
 }
 
@@ -84,21 +97,47 @@ void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
     {
         int ndx = calc_ijk_index();
 
-        double p = phase[model::phi][ndx];
+        double a = phase[model::a_ndx][ndx];
+        double b = phase[model::b_ndx][ndx];
+        double c = phase[model::c_ndx][ndx];
 
-        double laplace = stencil.laplacian_h2(phase[model::phi], ndx);
+        double asq = a*a;
+        double bsq = b*b;
+        double csq = c*c;
 
-        chem_pot[model::phi][ndx] = model::a2 * p 
-                                  + model::a4 * p*p*p 
-                                  - model::w * laplace;
+        double laplace_a = stencil.laplacian_h2(phase[model::a_ndx], ndx);
+        double laplace_b = stencil.laplacian_h2(phase[model::b_ndx], ndx);
+        double laplace_c = stencil.laplacian_h2(phase[model::c_ndx], ndx);
 
-        mobility[model::phi][ndx] = 1.0;
+        chem_pot[model::a_ndx][ndx] = -2*(1-a)*(1-b)*(1-b)*(1-c)*(1-c)
+                                    + 2*model::sigma_ab*a*bsq*(1-c)*(1-c)
+                                    + 2*model::sigma_ac*a*csq*(1-b)*(1-b)
+                                    - 2*model::sigma_bc*bsq*csq*(1-a)
+                                    + 2*a*bsq*csq
+                                    - model::Wa * laplace_a;
+
+        chem_pot[model::b_ndx][ndx] = -2*(1-b)*(1-a)*(1-a)*(1-c)*(1-c)
+                                    + 2*model::sigma_ab*b*asq*(1-c)*(1-c)
+                                    + 2*model::sigma_bc*b*csq*(1-a)*(1-a)
+                                    - 2*model::sigma_ac*asq*csq*(1-b)
+                                    + 2*b*asq*csq
+                                    - model::Wb * laplace_b;
+
+        chem_pot[model::c_ndx][ndx] = -2*(1-c)*(1-b)*(1-b)*(1-a)*(1-a)
+                                    + 2*model::sigma_bc*c*bsq*(1-a)*(1-a)
+                                    + 2*model::sigma_ac*c*asq*(1-b)*(1-b)
+                                    - 2*model::sigma_ab*bsq*asq*(1-c)
+                                    + 2*c*bsq*asq
+                                    - model::Wc * laplace_c;
+
     }
 
     for_loop_ijk(0)
     {
         int ndx = calc_ijk_index();
-        phase[model::phi][ndx] += model::dt * stencil.laplacian_h2(chem_pot[model::phi], ndx);
+        phase[model::a_ndx][ndx] += model::dt*stencil.laplacian_h2(chem_pot[model::a_ndx],ndx);
+        phase[model::b_ndx][ndx] += model::dt*stencil.laplacian_h2(chem_pot[model::b_ndx],ndx);
+        phase[model::c_ndx][ndx] += model::dt*stencil.laplacian_h2(chem_pot[model::c_ndx],ndx);
     }
 }
 
