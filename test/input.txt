@@ -3,7 +3,11 @@ Wa = 1.0
 Wb = 1.0
 Wc = 1.0
 
-sigma_ab = 0.8
+Ma = 1.0
+Mb = 1.0
+Mc = 1.0
+
+sigma_ab = 1.0
 sigma_ac = 1.0
 sigma_bc = 1.0
 
@@ -12,9 +16,9 @@ dt = 0.01
 
 
 init_file = droplet.h5
-nsteps = 10000
+nsteps = 5000000
 
-output_frequency = 1000
+output_frequency = 100000
 
 output_phase = a,b,c
 output_chem_pot =

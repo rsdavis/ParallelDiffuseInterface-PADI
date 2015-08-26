@@ -18,6 +18,10 @@ namespace model
     double Wb;
     double Wc;
 
+    double Ma;
+    double Mb;
+    double Mc;
+
     double sigma_ab;
     double sigma_ac;
     double sigma_bc;
@@ -56,6 +60,10 @@ void preprocess(double ** phase,  // order parameter data
     unpack(params, "Wa", model::Wa);
     unpack(params, "Wb", model::Wb);
     unpack(params, "Wc", model::Wc);
+
+    unpack(params, "Ma", model::Ma);
+    unpack(params, "Mb", model::Mb);
+    unpack(params, "Mc", model::Mc);
 
     unpack(params, "sigma_ab", model::sigma_ab);
     unpack(params, "sigma_ac", model::sigma_ac);
@@ -135,9 +143,9 @@ void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
     for_loop_ijk(0)
     {
         int ndx = calc_ijk_index();
-        phase[model::a_ndx][ndx] += model::dt*stencil.laplacian_h2(chem_pot[model::a_ndx],ndx);
-        phase[model::b_ndx][ndx] += model::dt*stencil.laplacian_h2(chem_pot[model::b_ndx],ndx);
-        phase[model::c_ndx][ndx] += model::dt*stencil.laplacian_h2(chem_pot[model::c_ndx],ndx);
+        phase[model::a_ndx][ndx] += model::dt*model::Ma*stencil.laplacian_h2(chem_pot[model::a_ndx],ndx);
+        phase[model::b_ndx][ndx] += model::dt*model::Mb*stencil.laplacian_h2(chem_pot[model::b_ndx],ndx);
+        phase[model::c_ndx][ndx] += model::dt*model::Mc*stencil.laplacian_h2(chem_pot[model::c_ndx],ndx);
     }
 }
 
