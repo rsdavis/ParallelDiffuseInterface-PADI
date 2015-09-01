@@ -10,11 +10,21 @@ namespace model
     */
 
     int phi;
+    int eta0;
+    int eta1;
+
     double dx;
     double dt;
-    double a2;
-    double a4;
-    double w;
+
+    double m;
+    double Wp;
+    double Wn;
+
+    double A;
+    double B;
+    double C;
+
+
 }
 
 
@@ -38,16 +48,27 @@ void preprocess(double ** phase,  // order parameter data
     // unpack phase index
 
     unpack(phase_index, "phi", model::phi);
+    unpack(phase_index, "eta0", model::eta0);
+    unpack(phase_index, "eta1", model::eta1);
 
     // unpack model parameters
 
     unpack(params, "dx", model::dx);
     unpack(params, "dt", model::dt);
 
-    unpack(params, "a2", model::a2);
-    unpack(params, "a4", model::a4);
-    unpack(params,  "w", model::w );
+    unpack(params, "Wp", model::Wp);
+    unpack(params, "Wn", model::Wn);
 
+    unpack(params, "A", model::A);
+    unpack(params, "B", model::B);
+    unpack(params, "C", model::C);
+
+}
+
+double P(double x)
+{
+    double xsq = x*x;
+    return (2*x-6*xsq+4*xsq*x);
 }
 
 void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
@@ -85,20 +106,46 @@ void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
         int ndx = calc_ijk_index();
 
         double p = phase[model::phi][ndx];
+        double n0 = phase[model::eta0][ndx];
+        double n1 = phase[model::eta1][ndx];
 
-        double laplace = stencil.laplacian_h2(phase[model::phi], ndx);
+        double psq = p*p;
+        double n0sq = n0*n0;
+        double n1sq = n1*n1;
 
-        chem_pot[model::phi][ndx] = model::a2 * p 
-                                  + model::a4 * p*p*p 
-                                  - model::w * laplace;
+        double laplace_phi = stencil.laplacian_h2(phase[model::phi], ndx);
+        double laplace_eta0 = stencil.laplacian_h2(phase[model::eta0], ndx);
+        double laplace_eta1 = stencil.laplacian_h2(phase[model::eta1], ndx);
 
-        mobility[model::phi][ndx] = 1.0;
+        chem_pot[model::phi][ndx] = model::A*P(p) + model::C*(
+                                  - 2*n0sq*(1-p)
+                                  - 2*n1sq*(1-p)
+                                  + 2*p*(1-n0)*(1-n0)*(1-n1)*(1-n1)
+                                  + 2*p*n0sq*n1sq)
+                                  - model::Wp * laplace_phi;
+
+        chem_pot[model::eta0][ndx] = model::B*P(n0) + model::C*(
+                                   + 2*n0*(1-p)*(1-p)
+                                   - 2*psq*(1-n0)*(1-n1)*(1-n1)
+                                   + 2*psq*n0*n1sq)
+                                   - model::Wn * laplace_eta0;
+
+        chem_pot[model::eta1][ndx] = model::B*P(n1) + model::C*(
+                                   + 2*n1*(1-p)*(1-p)
+                                   - 2*psq*(1-n0)*(1-n0)*(1-n1)
+                                   + 2*psq*n0sq*n1)
+                                   - model::Wn * laplace_eta1;
+        
     }
 
     for_loop_ijk(0)
     {
         int ndx = calc_ijk_index();
+
         phase[model::phi][ndx] += model::dt * stencil.laplacian_h2(chem_pot[model::phi], ndx);
+        phase[model::eta0][ndx] += -model::dt * chem_pot[model::eta0][ndx];
+        phase[model::eta1][ndx] += -model::dt * chem_pot[model::eta1][ndx];
+
     }
 }
 

@@ -1,19 +1,22 @@
 
 
-w = 1.0
-a2 = -1.0
-a4 = 1.0
+Wp = 1.80866
+Wn = 11.6913
+
+A = 0.607695
+B = 9.3923
+C = 1.0
 
 dx = 1.0
-dt = 0.01
+dt = 0.005
 
 
-init_file = spin_init.h5
-nsteps = 100000
+init_file = ysz_particles_48.h5
+nsteps = 1500000
 
-output_frequency = 10000
+output_frequency = 150000
 
-output_phase = phi
+output_phase = phi, eta1, eta2
 output_chem_pot =
 output_mobility =
 
