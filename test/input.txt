@@ -5,15 +5,15 @@ a2 = -1.0
 a4 = 1.0
 
 dx = 1.0
-dt = 0.01
+dt = 0.005
 
 
-init_file = spin_init.h5
+init_file = spin_init_3d.h5
 nsteps = 100000
 
 output_frequency = 10000
 
 output_phase = phi
-output_chem_pot =
+output_chem_pot = phi
 output_mobility =
 

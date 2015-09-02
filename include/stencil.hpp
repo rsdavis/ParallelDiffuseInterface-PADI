@@ -132,7 +132,7 @@ inline double Stencil :: grad_norm(double * data, int ndx)
     double * ptr = data + ndx;
     double grad_x = *(ptr + XPY0Z0) - *(ptr + XMY0Z0);
     double grad_y = *(ptr + X0YPZ0) - *(ptr + X0YMZ0);
-    double grad_y = *(ptr + X0Y0ZP) - *(ptr + X0Y0ZM);
+    double grad_z = *(ptr + X0Y0ZP) - *(ptr + X0Y0ZM);
 
     return 0.5*inv_dx*sqrt(grad_x*grad_x + grad_y*grad_y + grad_z*grad_z);
 }
@@ -153,7 +153,7 @@ inline double Stencil :: grad_sq(double * data, int ndx)
     double * ptr = data + ndx;
     double grad_x = *(ptr + XPY0Z0) - *(ptr + XMY0Z0);
     double grad_y = *(ptr + X0YPZ0) - *(ptr + X0YMZ0);
-    double grad_y = *(ptr + X0Y0ZP) - *(ptr + X0Y0ZM);
+    double grad_z = *(ptr + X0Y0ZP) - *(ptr + X0Y0ZM);
 
     return 0.25*inv_dx_sq*(grad_x*grad_x + grad_y*grad_y + grad_z*grad_z);
 }
