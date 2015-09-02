@@ -1,21 +1,21 @@
 
-A = 1.5
-B = -0.5
-C = 0.5
+A = 1.0
+B = 1.0
+C = 1.0
 
-Wa = 3.375
-Wb = 1.125
-Wc = 1.125
+Wa = 2.25
+Wb = 2.25
+Wc = 2.25
 
-Ma = 0.0
+Ma = 1.0
 Mb = 1.0
 Mc = 1.0
 
 dx = 1.0
 dt = 0.01
 
-init_file = sintered_droplet.h5
-nsteps = 100000
+init_file = droplet.h5
+nsteps = 500000
 
 output_frequency = 10000
 
