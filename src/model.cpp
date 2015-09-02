@@ -14,6 +14,10 @@ namespace model
     double dx;
     double dt;
 
+    double A;
+    double B;
+    double C;
+
     double Wa;
     double Wb;
     double Wc;
@@ -21,10 +25,6 @@ namespace model
     double Ma;
     double Mb;
     double Mc;
-
-    double sigma_ab;
-    double sigma_ac;
-    double sigma_bc;
 
 }
 
@@ -57,6 +57,10 @@ void preprocess(double ** phase,  // order parameter data
     unpack(params, "dx", model::dx);
     unpack(params, "dt", model::dt);
 
+    unpack(params, "A", model::A);
+    unpack(params, "B", model::B);
+    unpack(params, "C", model::C);
+
     unpack(params, "Wa", model::Wa);
     unpack(params, "Wb", model::Wb);
     unpack(params, "Wc", model::Wc);
@@ -64,10 +68,6 @@ void preprocess(double ** phase,  // order parameter data
     unpack(params, "Ma", model::Ma);
     unpack(params, "Mb", model::Mb);
     unpack(params, "Mc", model::Mc);
-
-    unpack(params, "sigma_ab", model::sigma_ab);
-    unpack(params, "sigma_ac", model::sigma_ac);
-    unpack(params, "sigma_bc", model::sigma_bc);
 
 }
 
@@ -117,27 +117,21 @@ void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
         double laplace_b = stencil.laplacian_h2(phase[model::b_ndx], ndx);
         double laplace_c = stencil.laplacian_h2(phase[model::c_ndx], ndx);
 
-        chem_pot[model::a_ndx][ndx] = -2*(1-a)*(1-b)*(1-b)*(1-c)*(1-c)
-                                    + 2*model::sigma_ab*a*bsq*(1-c)*(1-c)
-                                    + 2*model::sigma_ac*a*csq*(1-b)*(1-b)
-                                    - 2*model::sigma_bc*bsq*csq*(1-a)
-                                    + 2*a*bsq*csq
+        chem_pot[model::a_ndx][ndx] = model::A * (2*a-6*asq+4*asq*a) 
+                                    + 2*a*bsq + 2*a*csq
+                                    - 2*(1-a)*(1-b)*(1-b)*(1-c)*(1-c)
                                     - model::Wa * laplace_a;
 
-        chem_pot[model::b_ndx][ndx] = -2*(1-b)*(1-a)*(1-a)*(1-c)*(1-c)
-                                    + 2*model::sigma_ab*b*asq*(1-c)*(1-c)
-                                    + 2*model::sigma_bc*b*csq*(1-a)*(1-a)
-                                    - 2*model::sigma_ac*asq*csq*(1-b)
-                                    + 2*b*asq*csq
+        chem_pot[model::b_ndx][ndx] = model::B * (2*b-6*bsq+4*bsq*b)
+                                    + 2*asq*b + 2*b*csq
+                                    - 2*(1-a)*(1-a)*(1-b)*(1-c)*(1-c)
                                     - model::Wb * laplace_b;
 
-        chem_pot[model::c_ndx][ndx] = -2*(1-c)*(1-b)*(1-b)*(1-a)*(1-a)
-                                    + 2*model::sigma_bc*c*bsq*(1-a)*(1-a)
-                                    + 2*model::sigma_ac*c*asq*(1-b)*(1-b)
-                                    - 2*model::sigma_ab*bsq*asq*(1-c)
-                                    + 2*c*bsq*asq
-                                    - model::Wc * laplace_c;
 
+        chem_pot[model::c_ndx][ndx] = model::C * (2*c-6*csq+4*csq*c)
+                                    + 2*asq*c + 2*bsq*c
+                                    - 2*(1-a)*(1-a)*(1-b)*(1-b)*(1-c)
+                                    - model::Wc * laplace_c;
     }
 
     for_loop_ijk(0)
