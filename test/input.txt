@@ -1,23 +1,23 @@
 
-A = 1.0
-B = 1.0
-C = 1.0
+A = 1.5
+B = -0.5
+C = 0.5
 
-Wa = 2.25
-Wb = 2.25
-Wc = 2.25
+Wa = 2.8125
+Wb = 0.5625
+Wc = 1.6875
 
-Ma = 1.0
+Ma = 0.0
 Mb = 1.0
 Mc = 1.0
 
 dx = 1.0
 dt = 0.01
 
-init_file = droplet.h5
-nsteps = 500000
+init_file = sintered.h5
+nsteps = 10000000
 
-output_frequency = 10000
+output_frequency = 200000
 
 output_phase = a,b,c
 output_chem_pot =

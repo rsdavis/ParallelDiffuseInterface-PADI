@@ -98,20 +98,11 @@ void readGlobalData(std::string filename,
     FILE_LOG(logDEBUG) << "Reading Initial Configuration file = " << filename;
 
     H5Grid h5;
-    err = h5.open(filename, "r", global_dims, ndims);
+    err = h5.open(filename, "r");
 
     if (err > 0) {
         FILE_LOG(logERROR) << "Error opening file " << filename;
         FILE_LOG(logERROR) << "H5GRID OPEN CODE: " << err;
-        MPI_Abort(MPI_COMM_WORLD, 0);
-    }
-
-    FILE_LOG(logDEBUG) << "global_dims[0]=" << global_dims[0];
-    FILE_LOG(logDEBUG) << "global_dims[1]=" << global_dims[1];
-
-    if (ndims != SPF_NDIMS) {
-        FILE_LOG(logERROR) << "Data has dimensionality = " << ndims;
-        FILE_LOG(logERROR) << "Simulation has dimensionality = " << SPF_NDIMS;
         MPI_Abort(MPI_COMM_WORLD, 0);
     }
 
@@ -123,6 +114,14 @@ void readGlobalData(std::string filename,
         FILE_LOG(logERROR) << "H5GRID LIST CODE: " << err;
         MPI_Abort(MPI_COMM_WORLD, 0);
     }
+    
+    if (name_list.size() == 0) {
+        FILE_LOG(logERROR) << "No order parameter in config file " << filename;
+        MPI_Abort(MPI_COMM_WORLD, 0);
+    }
+
+    err = h5.get_ndims(name_list[0], ndims);
+    err = h5.get_dims(name_list[0], global_dims);
 
     /* Allocate Global Data */
 
@@ -142,7 +141,31 @@ void readGlobalData(std::string filename,
 
     for (int i=0; i<name_list.size(); i++) 
     {
+        
+        int dims[3];
         int offset = vol*i;
+
+        // check that dimensions match for each order parameter
+
+        err = h5.get_ndims(name_list[i], ndims);
+        err = h5.get_dims(name_list[i], dims);
+        
+        if (ndims != SPF_NDIMS) {
+            FILE_LOG(logERROR) << "Data has dimensionality = " << ndims;
+            FILE_LOG(logERROR) << "Simulation has dimensionality = " << SPF_NDIMS;
+            MPI_Abort(MPI_COMM_WORLD, 0);
+        }
+
+        for (int j=0; j<ndims; j++)
+        {
+            if (dims[j] != global_dims[j]) {
+                FILE_LOG(logERROR) << "Dimensions do not match for dataset: " << name_list[i];
+                MPI_Abort(MPI_COMM_WORLD, 0);
+            }
+        }
+
+        // read dataset
+
         err = h5.read_dataset(name_list[i], global_phase + offset);
 
         if (err > 0) {
@@ -340,12 +363,11 @@ int main(int argc, char ** argv)
 
     if (rank==0) {
         H5Grid h5;
-        int ndims = SPF_NDIMS;
-        h5.open("strand.h5", "w", global_dims, ndims);
+        h5.open("strand.h5", "w");
         for (int i=0; i<nphases; i++)
         {
             std::string path = output_path(phase_names+i*100, 0);
-            h5.write_dataset(path, global_phase + global_volume*i);
+            h5.write_dataset(path, global_phase + global_volume*i, global_dims, SPF_NDIMS);
         }
         h5.close();
     }
@@ -377,12 +399,12 @@ int main(int argc, char ** argv)
             FILE_LOG(logDEBUG) << "Output";
             
             H5Grid h5;
-            int stat, ndims = SPF_NDIMS;
+            int stat;
             double * buffer; 
             int frame;
             mpitimer_start(io_time);
 
-            if (rank == 0) h5.open("strand.h5", "a", global_dims, ndims);
+            if (rank == 0) h5.open("strand.h5", "a");
 
             buffer = new double [global_volume];
             frame = istep / std::stoi(params["output_frequency"]);
@@ -396,7 +418,7 @@ int main(int argc, char ** argv)
                 grid.gather(global_phase+global_volume*i, local_phase+local_volume*i);
                 if (output_phase[i] && rank == 0) {
                         std::string path = output_path(name, frame);
-                        stat = h5.write_dataset(path, global_phase+global_volume*i);
+                        stat = h5.write_dataset(path, global_phase+global_volume*i, global_dims, SPF_NDIMS);
                 }
 
                 // output mobility
@@ -405,7 +427,7 @@ int main(int argc, char ** argv)
                     if (rank==0) {
                         std::string mod = "_mobility";
                         std::string path = output_path(name+mod, frame);
-                        stat = h5.write_dataset(path, buffer);
+                        stat = h5.write_dataset(path, buffer, global_dims, SPF_NDIMS);
                     }
                 }
 
@@ -415,7 +437,7 @@ int main(int argc, char ** argv)
                     if (rank==0) {
                         std::string mod = "_chem_pot";
                         std::string path = output_path(name+mod, frame);
-                        stat = h5.write_dataset(path, buffer);
+                        stat = h5.write_dataset(path, buffer, global_dims, SPF_NDIMS);
                     }
                 }
             }
@@ -429,13 +451,12 @@ int main(int argc, char ** argv)
 
     if (rank == 0) {
         H5Grid chckpt;
-        int ndims = SPF_NDIMS;
-        int stat = chckpt.open("checkpoint.h5", "w", global_dims, ndims);
+        int stat = chckpt.open("checkpoint.h5", "w");
         if (stat != 0) {FILE_LOG(logERROR) << "H5Grid open checkpoint: " << stat;}
         for (int i=0; i<nphases; i++)
         {
             std::string name = phase_names+i*100;
-            stat = chckpt.write_dataset(name, global_phase+global_volume*i);
+            stat = chckpt.write_dataset(name, global_phase+global_volume*i,global_dims, SPF_NDIMS);
             if (stat != 0) {FILE_LOG(logERROR) << "H5Grid write checkpoint: " << stat;}
         }
         stat = chckpt.close();

@@ -1,29 +1,31 @@
 
-#include <iostream>
 #include <string>
 #include <vector>
+
 #include "hdf5.h"
 
-//! A simple interface for storing/accessing grid data in hdf5 files
-
 class H5Grid {
-
     private:
         hid_t m_file_id;
-        hsize_t m_dims[3];
-        hsize_t m_ndims;
 
         void create_group(std::string path);
         void parse (std::string attr_name, std::string &path, std::string &name);
 
     public:
+
         H5Grid();
-        int open(std::string filename, std::string mode, int * dims, int &ndims);
+
+        int open(std::string filename, std::string mode);
         int read_dataset(std::string dataset_name, double * dataset);
-        int write_dataset(std::string dataset_name, double * dataset);
-        int set_attribute(std::string attr_name, int attr_value);
-        int get_attribute(std::string attr_name, int &attr_value);
+        int write_dataset(std::string dataset_name, double * dataset, int * dims, int ndims);
+
+        int get_ndims(std::string dataset_name, int &ndims);
+        int get_dims(std::string dataset_name, int * dims);
+
         int list(std::string path, std::vector<std::string> &list);
+        int set_attribute(std::string attr_name, int  attr_value);
+        int get_attribute(std::string attr_name, int &attr_value);
+
         int close();
 };
 
@@ -49,159 +51,6 @@ void H5Grid :: create_group(std::string path)
     }
 }
 
-
-int H5Grid :: open(std::string filename, std::string mode, int * dims, int &ndims)
-{
-    /**
-    @param filename Name of the hdf5 file
-    @param mode of file access "r", "w", or "a"
-    @param dims number of grid points in each dimension
-    @param ndims number of dimensions
-    **/
-
-    /**
-    nx, ny, nz must be variables, and cannot be constant integers (e.g. "nx" instead of "100")
-    For 2D data, nz should be set to 0.
-    **/
-
-    /** \error ERROR 1: mode must be either "r", "w", or "a" */
-    /** \error ERROR 2: a file is already open */
-    /** \error ERROR 3: mode is "r" or "a" but the file does not exist */
-    /** \error ERROR 4: file is not in hdf5 format */
-
-    unsigned read, write, append;
-    hid_t space_id, attr_id;
-
-    read = (mode == "r");
-    write = (mode == "w");
-    append = (mode == "a");
-
-    // check that one is true
-    if ( (read || write || append) != 1) return 1;
-
-    // check that a file is not already open
-    if (m_file_id != 0) return 2;
-
-
-
-    if ( write ) {
-        m_file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-
-        m_ndims = ndims;
-        for (int i=0; i<ndims; i++) m_dims[i] = dims[i];
-
-        space_id = H5Screate_simple(1, &m_ndims, NULL);
-        attr_id = H5Acreate(m_file_id, "DIMS", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
-        H5Awrite(attr_id, H5T_NATIVE_INT, dims);
-        H5Sclose(space_id);
-        H5Aclose(attr_id);
-
-    } else if (read || append) {
-        FILE * file_exists = fopen(filename.c_str(), "r");
-        if (file_exists == NULL) return 3;
-        else fclose(file_exists);
-
-        //this doesn't work for some reason
-        //if (H5Fis_hdf5(filename.c_str()) < 1) return 4;
-
-        if (read)
-            m_file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-        if (append)
-            m_file_id = H5Fopen(filename.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
-
-        attr_id = H5Aopen(m_file_id, "DIMS", H5P_DEFAULT);
-        H5Aread(attr_id, H5T_NATIVE_INT, dims);
-        space_id = H5Aget_space(attr_id);
-        H5Sget_simple_extent_dims(space_id, &m_ndims, NULL);
-        H5Aclose(attr_id);
-        H5Sclose(space_id);
-
-        ndims = m_ndims;
-        for (int i=0; i<ndims; i++) m_dims[i] = dims[i];
-    }
-
-    return 0;
-}
-
-int H5Grid :: read_dataset(std::string dataset_name, double * dataset)
-{
-    /**
-    * @param dataset_name name of the dataset
-    * @param dataset pointer to the first element of data
-    **/
-
-    hid_t data_id; 
-
-    //check that dataset exists
-    /* requires that you check every group in the path
-    htri_t dataset_exists = H5Lexists(file_id, dataset_name.c_str(), H5P_DEFAULT);
-    if (dataset_exists <= 0) return 1;
-    */
-
-    data_id = H5Dopen(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
-    H5Dread(data_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset);
-
-    H5Dclose(data_id);
-
-    return 0;
-}
-
-int H5Grid :: write_dataset(std::string dataset_name, double * dataset)
-{
-    /**
-    * @param dataset_name name of the dataset
-    * @param dataset pointer to the first element of data
-    **/
-
-    /** \error ERROR 1: dataset already existed and was overwritten */
-    /** \error ERROR 2: internal error when writing the dataset */
-
-    hid_t dcpl_id, space_id, data_id;
-    herr_t error;
-
-    std::string path;
-    std::string name;
-
-    // create groups in the path
-    create_group(dataset_name);
-
-    // check if dataset already exisits
-    htri_t dataset_exists = H5Lexists(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
-
-    if (dataset_exists==0) { // create dataset
-
-        // chunk for data compression
-        dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        H5Pset_chunk(dcpl_id, m_ndims, m_dims);
-        H5Pset_shuffle(dcpl_id);
-        H5Pset_deflate(dcpl_id, 1);
-
-        space_id = H5Screate_simple(m_ndims, m_dims, NULL);
-        data_id = H5Dcreate(m_file_id, 
-                            dataset_name.c_str(), 
-                            H5T_NATIVE_DOUBLE, 
-                            space_id, 
-                            H5P_DEFAULT, 
-                            dcpl_id, 
-                            H5P_DEFAULT);
-
-    } else { // dataset_exists, just open and overwrite data
-        data_id = H5Dopen(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
-    }
-
-    error = H5Dwrite(data_id,
-                     H5T_NATIVE_DOUBLE,
-                     H5S_ALL,
-                     H5S_ALL,
-                     H5P_DEFAULT,
-                     dataset);
-
-    if (dataset_exists) return 1;
-    if (error < 0) return 2;
-
-    return 0;
-}
-
 void H5Grid :: parse (std::string attr_name, std::string &path, std::string &name)
 {
     size_t start = 0;
@@ -214,6 +63,168 @@ void H5Grid :: parse (std::string attr_name, std::string &path, std::string &nam
         name = attr_name.substr(start,end-start);
         start = end + 1;
     }
+}
+
+int H5Grid :: open(std::string filename, std::string mode)
+{
+    unsigned read, write, append;
+
+    read = (mode == "r");
+    write = (mode == "w");
+    append = (mode == "a");
+
+    // check that one is true
+    if ( (read || write || append) != 1) return 1;
+
+    // check that a file is not already open
+    if (m_file_id != 0) return 2;
+
+    if ( write ) {
+        m_file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    } else if ( read || append ) {
+        FILE * file_exists = fopen(filename.c_str(), "r");
+        if (file_exists == NULL) return 3;
+        else fclose(file_exists);
+
+        if ( read )
+            m_file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+        if ( append )
+            m_file_id = H5Fopen(filename.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+    }
+
+    return 0;
+}
+
+int H5Grid :: write_dataset(std::string dataset_name, double * dataset, int * dims, int ndims)
+{
+
+    hid_t data_id;
+    herr_t error;
+
+    create_group(dataset_name);
+    htri_t dataset_exists = H5Lexists(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
+
+    if ( dataset_exists == 0 ) {
+
+        hsize_t h5_ndims = (hsize_t) ndims;
+        hsize_t h5_dims[ndims];
+        hid_t dcpl_id, space_id;
+
+        // convert datatypes to be compatible with hdf5
+        for (int i=0; i<ndims; i++) h5_dims[i] = (hid_t) dims[i];
+
+        dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
+        H5Pset_chunk(dcpl_id, h5_ndims, h5_dims);
+        H5Pset_shuffle(dcpl_id);
+        H5Pset_deflate(dcpl_id, 1);
+
+        space_id = H5Screate_simple(h5_ndims, h5_dims, NULL);
+        data_id = H5Dcreate(m_file_id,
+                            dataset_name.c_str(),
+                            H5T_NATIVE_DOUBLE,
+                            space_id,
+                            H5P_DEFAULT,
+                            dcpl_id,
+                            H5P_DEFAULT);
+
+        H5Pclose(dcpl_id);
+        H5Sclose(space_id);
+        
+    } else {
+        data_id = H5Dopen(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
+    }
+
+    error = H5Dwrite(data_id,
+                     H5T_NATIVE_DOUBLE,
+                     H5S_ALL,
+                     H5S_ALL,
+                     H5P_DEFAULT,
+                     dataset);
+
+    H5Dclose(data_id);
+
+    if ( dataset_exists ) return 1;
+    if ( error < 0 ) return 2;
+
+    return 0;
+}
+
+int H5Grid :: get_ndims(std::string dataset_name, int &ndims)
+{
+    hid_t data_id, space_id;
+
+    data_id = H5Dopen(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
+    space_id = H5Dget_space(data_id);
+    ndims = H5Sget_simple_extent_ndims(space_id);
+
+    H5Sclose(space_id);
+    H5Dclose(data_id);
+
+    return 0;
+}
+
+int H5Grid :: get_dims(std::string dataset_name, int * dims)
+{
+    int ndims;
+    int max_dims=10;
+    hid_t data_id, space_id;
+    hsize_t h5_dims[max_dims];
+
+    data_id = H5Dopen(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
+    space_id = H5Dget_space(data_id);
+    ndims = H5Sget_simple_extent_ndims(space_id);
+    if (ndims > max_dims) return 1;
+    H5Sget_simple_extent_dims(space_id, h5_dims, NULL);
+    for (int i=0; i<ndims; i++) dims[i] = (int) h5_dims[i];
+
+    H5Sclose(space_id);
+    H5Dclose(data_id);
+
+    return 0;
+}
+
+int H5Grid :: read_dataset(std::string dataset_name, double * dataset)
+{
+    hid_t data_id;
+    herr_t error;
+
+    data_id = H5Dopen(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
+    error = H5Dread(data_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset);
+    if (error < 0) return 1;
+
+    H5Dclose(data_id);
+    return 0;
+}
+
+int H5Grid :: list(std::string path, std::vector<std::string> &list)
+{
+
+    /**
+    @param path list all the dataset in this path
+    @param list modified to contain the names of the datasets
+    **/
+
+    hid_t group_id;
+    H5G_info_t group_info;
+
+    // need to implement group existence check
+
+    group_id = H5Gopen(m_file_id, path.c_str(), H5P_DEFAULT);
+    H5Gget_info(group_id, &group_info);
+
+    list.resize(group_info.nlinks);
+
+    for (int i=0; i<group_info.nlinks; i++)
+    {
+        char name[256];
+        H5Gget_objname_by_idx(group_id, i, name, 256);
+        list[i] = name;
+    }
+
+
+    H5Gclose(group_id);
+
+    return 0;
 }
 
 int H5Grid :: set_attribute(std::string attr_name, int  attr_value)
@@ -282,48 +293,13 @@ int H5Grid :: get_attribute(std::string attr_name, int &attr_value)
     return 0;
 }
 
-int H5Grid :: list(std::string path, std::vector<std::string> &list)
-{
-
-    /**
-    @param path list all the dataset in this path
-    @param list modified to contain the names of the datasets
-    **/
-
-    hid_t group_id;
-    H5G_info_t group_info;
-
-    // need to implement group existence check
-
-    group_id = H5Gopen(m_file_id, path.c_str(), H5P_DEFAULT);
-    H5Gget_info(group_id, &group_info);
-
-    list.resize(group_info.nlinks);
-
-    for (int i=0; i<group_info.nlinks; i++)
-    {
-        char name[256];
-        H5Gget_objname_by_idx(group_id, i, name, 256);
-        list[i] = name;
-    }
-
-
-    H5Gclose(group_id);
-
-    return 0;
-}
-
 int H5Grid :: close()
 {
-    /** \error ERROR 1: there is no file to close **/
-
-    if (m_file_id == 0) {
-        // no file opened
+    if ( m_file_id == 0 ) {
         return 1;
     } else {
         H5Fclose(m_file_id);
         m_file_id = 0;
     }
-
     return 0;
 }
