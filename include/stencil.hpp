@@ -46,6 +46,7 @@ class Stencil {
 
         inline void setup(int * dims, double dx);
         inline double laplacian_h2(double * data, int ndx);
+        inline double laplacian_h4(double * data, int ndx);
         inline double grad_norm(double * data, int ndx);
         inline double grad_sq(double * data, int ndx);
         inline double div_A_grad_B(double * A, double * B, int ndx);
@@ -114,7 +115,52 @@ inline double Stencil :: laplacian_h2(double * data, int ndx)
                - *(ptr + X0Y0Z0)*4;
     return lap*inv_dx_sq;
 }
+#endif
 
+#if SPF_NDIMS == 2
+inline double Stencil :: laplacian_h4(double * data, int ndx)
+{
+    double * ptr = data + ndx;
+    double lap = *(ptr + XPY0Z0)*4
+               + *(ptr + XMY0Z0)*4
+               + *(ptr + X0YPZ0)*4
+               + *(ptr + X0YMZ0)*4
+               + *(ptr + XPYPZ0)
+               + *(ptr + XMYPZ0)
+               + *(ptr + XPYMZ0)
+               + *(ptr + XMYMZ0)
+               - *(ptr + X0Y0Z0)*20;
+    return lap*inv_dx_sq/6.0;
+}
+#elif SPF_NDIMS == 3
+inline double Stencil :: laplacian_h4(double * data, int ndx)
+{
+    double * ptr = data + ndx;
+    double lap = 
+               - *(ptr + X0Y0Z0)*24
+               + *(ptr + XPY0Z0)*2
+               + *(ptr + XMY0Z0)*2
+               + *(ptr + X0YPZ0)*2
+               + *(ptr + X0YMZ0)*2
+               + *(ptr + XPYPZ0)
+               + *(ptr + XPYMZ0)
+               + *(ptr + XMYPZ0)
+               + *(ptr + XMYMZ0)
+
+               + *(ptr + X0Y0ZP)*2
+               + *(ptr + XPY0ZP)
+               + *(ptr + XMY0ZP)
+               + *(ptr + X0YPZP)
+               + *(ptr + X0YMZP)
+
+               + *(ptr + X0Y0ZM)*2
+               + *(ptr + XPY0ZM)
+               + *(ptr + XMY0ZM)
+               + *(ptr + X0YPZM)
+               + *(ptr + X0YMZM);
+
+    return lap*inv_dx_sq;
+}
 #endif
 
 #if SPF_NDIMS == 2
@@ -215,37 +261,5 @@ inline double Stencil :: div_A_grad_B(double * A, double * B, int ndx)
 
 }    
 #endif
-
-/*
-inline double laplacian_h4(double * data, int ndx, double inv_dx_sq)
-{
-    double * ptr = data + ndx;
-    double lap = 
-               - *(ptr + X0Y0Z0)*24
-               + *(ptr + XPY0Z0)*2
-               + *(ptr + XMY0Z0)*2
-               + *(ptr + X0YPZ0)*2
-               + *(ptr + X0YMZ0)*2
-               + *(ptr + XPYPZ0)
-               + *(ptr + XPYMZ0)
-               + *(ptr + XMYPZ0)
-               + *(ptr + XMYMZ0)
-
-               + *(ptr + X0Y0ZP)*2
-               + *(ptr + XPY0ZP)
-               + *(ptr + XMY0ZP)
-               + *(ptr + X0YPZP)
-               + *(ptr + X0YMZP)
-
-               + *(ptr + X0Y0ZM)*2
-               + *(ptr + XPY0ZM)
-               + *(ptr + XMY0ZM)
-               + *(ptr + X0YPZM)
-               + *(ptr + X0YMZM);
-
-    return lap*inv_dx_sq;
-}
-*/
-
 
 #endif

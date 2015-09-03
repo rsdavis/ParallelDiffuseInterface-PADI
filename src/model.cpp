@@ -86,7 +86,7 @@ void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
 
         double p = phase[model::phi][ndx];
 
-        double laplace = stencil.laplacian_h2(phase[model::phi], ndx);
+        double laplace = stencil.laplacian_h4(phase[model::phi], ndx);
 
         chem_pot[model::phi][ndx] = model::a2 * p 
                                   + model::a4 * p*p*p 
