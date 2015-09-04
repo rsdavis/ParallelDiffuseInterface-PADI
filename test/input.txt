@@ -13,8 +13,10 @@ nsteps = 10000
 
 output_frequency = 1000
 
+continue = 1
+
 output_phase = phi
-output_chem_pot = phi
+output_chem_pot = 
 output_mobility =
 nonshared = 
 

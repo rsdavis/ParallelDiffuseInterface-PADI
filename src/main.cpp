@@ -264,7 +264,12 @@ int main(int argc, char ** argv)
 
     if (rank == 0) {
         std::vector<std::string> name_list;
-        readGlobalData(params["init_file"], global_phase, global_dims, name_list);
+
+        if (atoi(params["continue"].c_str())==0)
+            readGlobalData(params["init_file"], global_phase, global_dims, name_list);
+        else
+            readGlobalData("checkpoint.h5", global_phase, global_dims, name_list);
+
 
         nphases = name_list.size();
         phase_names = new char [100*nphases];
@@ -368,7 +373,8 @@ int main(int argc, char ** argv)
         mobility_alias[i] = local_mobility + local_volume*i;
     }
 
-    if (rank==0) {
+    if (rank==0 && atoi(params["continue"].c_str())==0) {
+        printf("%s\n", params["continue"].c_str());
         H5Grid h5;
         h5.open("strand.h5", "w");
         for (int i=0; i<nphases; i++)
@@ -422,13 +428,23 @@ int main(int argc, char ** argv)
             // cycle through order parameters
             for (int i=0; i<nphases; i++) {
 
+                int frame;
                 std::string name = phase_names+i*100;
+
+                if (rank == 0) {
+                    std::vector<std::string> list;
+                    h5.list(name, list);
+                    frame = list.size();
+                }
 
                 // output phases
                 grid.gather(global_phase+global_volume*i, local_phase+local_volume*i);
                 if (output_phase[i] && rank == 0) {
-                        std::string path = output_path(name, frame);
-                        stat = h5.write_dataset(path, global_phase+global_volume*i, global_dims, SPF_NDIMS);
+                    std::string path = output_path(name, frame);
+                    stat = h5.write_dataset(path, global_phase+global_volume*i, global_dims, SPF_NDIMS);
+                    if (stat != 0) {
+                        MPI_Abort(MPI_COMM_WORLD, 0);
+                    }
                 }
 
                 // output mobility
@@ -457,24 +473,24 @@ int main(int argc, char ** argv)
                 delete [] buffer;
             }
 
+            if (rank == 0) {
+                H5Grid chckpt;
+                int stat = chckpt.open("checkpoint.h5", "w");
+                if (stat != 0) {FILE_LOG(logERROR) << "H5Grid open checkpoint: " << stat;}
+                for (int i=0; i<nphases; i++)
+                {
+                    std::string name = phase_names+i*100;
+                    stat = chckpt.write_dataset(name, global_phase+global_volume*i,global_dims, SPF_NDIMS);
+                    if (stat != 0) {FILE_LOG(logERROR) << "H5Grid write checkpoint: " << stat;}
+                }
+                stat = chckpt.close();
+                if (stat != 0) {FILE_LOG(logERROR) << "H5Grid close checkpoint: " << stat;}
+            }
+
             mpitimer_stop(io_time);
         } // end output
 
     } // end timesteping
-
-    if (rank == 0) {
-        H5Grid chckpt;
-        int stat = chckpt.open("checkpoint.h5", "w");
-        if (stat != 0) {FILE_LOG(logERROR) << "H5Grid open checkpoint: " << stat;}
-        for (int i=0; i<nphases; i++)
-        {
-            std::string name = phase_names+i*100;
-            stat = chckpt.write_dataset(name, global_phase+global_volume*i,global_dims, SPF_NDIMS);
-            if (stat != 0) {FILE_LOG(logERROR) << "H5Grid write checkpoint: " << stat;}
-        }
-        stat = chckpt.close();
-        if (stat != 0) {FILE_LOG(logERROR) << "H5Grid close checkpoint: " << stat;}
-    }
 
     FILE_LOG(logDEBUG) << "Postprocess";
     postprocess(data_alias, chem_pot_alias, mobility_alias, local_dims);
