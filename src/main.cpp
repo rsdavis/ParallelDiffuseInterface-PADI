@@ -374,7 +374,6 @@ int main(int argc, char ** argv)
     }
 
     if (rank==0 && atoi(params["continue"].c_str())==0) {
-        printf("%s\n", params["continue"].c_str());
         H5Grid h5;
         h5.open("strand.h5", "w");
         for (int i=0; i<nphases; i++)
