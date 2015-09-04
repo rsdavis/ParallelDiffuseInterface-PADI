@@ -224,6 +224,7 @@ int main(int argc, char ** argv)
     int nphases;
 
     std::map<std::string, int> phase_index;
+    std::vector<int> nonshared;
     std::vector<int> output_phase;
     std::vector<int> output_mobility;
     std::vector<int> output_chem_pot;
@@ -314,6 +315,7 @@ int main(int argc, char ** argv)
     local_mobility = new double [local_volume*nphases];
 
     // create map of names and index
+    std::vector<std::string> nonsh = parse_by_comma(params["nonshared"]);
     std::vector<std::string> out_p = parse_by_comma(params["output_phase"]);
     std::vector<std::string> out_m = parse_by_comma(params["output_mobility"]);
     std::vector<std::string> out_c = parse_by_comma(params["output_chem_pot"]);
@@ -321,7 +323,7 @@ int main(int argc, char ** argv)
     output_phase.resize(nphases);
     output_mobility.resize(nphases);
     output_chem_pot.resize(nphases);
-
+    nonshared.resize(nphases);
 
     for (int i=0; i<nphases; i++)
     {
@@ -331,6 +333,7 @@ int main(int argc, char ** argv)
         output_phase[i] = 0;
         output_mobility[i] = 0;
         output_chem_pot[i] = 0;
+        nonshared[i] = 0;
 
         if (std::find(out_p.begin(), out_p.end(), name) != out_p.end()) 
             output_phase[i] = 1;
@@ -338,6 +341,8 @@ int main(int argc, char ** argv)
             output_mobility[i] = 1;
         if (std::find(out_c.begin(), out_c.end(), name) != out_c.end()) 
             output_chem_pot[i] = 1;
+        if (std::find(nonsh.begin(), nonsh.end(), name) != nonsh.end())
+            nonshared[i] = 1;
     }
 
     // scatter and share data
@@ -387,7 +392,7 @@ int main(int argc, char ** argv)
         FILE_LOG(logDEBUG) << "Share data";
         mpitimer_start(comm_time);
         for (int i=0; i<nphases; i++)
-            grid.share(local_phase + local_volume*i);
+            if (!nonshared[i]) grid.share(local_phase + local_volume*i);
         mpitimer_stop(comm_time);
 
         if (rank==0 && std::stoi(params["nsteps"]) > 10 && istep % (std::stoi(params["nsteps"])/10) == 0)
@@ -404,9 +409,11 @@ int main(int argc, char ** argv)
             int frame;
             mpitimer_start(io_time);
 
-            if (rank == 0) h5.open("strand.h5", "a");
+            if (rank == 0) {
+                h5.open("strand.h5", "a");
+                buffer = new double [global_volume];
+            }
 
-            buffer = new double [global_volume];
             frame = istep / std::stoi(params["output_frequency"]);
 
             // cycle through order parameters
@@ -442,7 +449,10 @@ int main(int argc, char ** argv)
                 }
             }
 
-            if (rank == 0) h5.close();
+            if (rank == 0) {
+                h5.close();
+                delete [] buffer;
+            }
 
             mpitimer_stop(io_time);
         } // end output
