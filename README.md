@@ -38,13 +38,16 @@ The initial configuration file essentially contains the initial conditions and i
 
 The executable is called "spf" and is located in the bin directory. In most environments it is executed by running "mpirun -np 4 /path/to/spf" where 4 is the number of processors.
 
-A sucessful simulation output 2 files:
+A successful simulation outputs 3 files:
 - the log file
 - the strand file
+- the checkpoint file
 
 The log file includes information relevant to that particular simulation. It contains parameter values, profiling information, and error events.
 
 The strand file is an hdf5 file where all of the order parameter data is stored. Each order parameter has its own directory that takes the name of the order parameter. Within each directory is a list of dataset that were outputted periodically during the simulation.
+
+The simulation periodically outputs a checkpoint file with all of the order parameter information. This file is used to continue from a simulation that has finished or erroneously terminated.
 
 ## Programming
 There is only one file that the user is required to edit in order to implement thier model. This file is called model.cpp and is located in the src directory. 
