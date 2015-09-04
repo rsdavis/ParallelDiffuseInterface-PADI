@@ -229,12 +229,14 @@ int main(int argc, char ** argv)
     std::vector<int> output_mobility;
     std::vector<int> output_chem_pot;
 
+    mpitimer * setup_time = mpitimer_new();
     mpitimer * comm_time = mpitimer_new();
     mpitimer * comp_time = mpitimer_new();
     mpitimer * io_time = mpitimer_new();
     mpitimer * total_time = mpitimer_new();
 
     mpitimer_start(total_time);
+    mpitimer_start(setup_time);
 
 
     MPI_Comm_size(MPI_COMM_WORLD, &np);
@@ -378,6 +380,7 @@ int main(int argc, char ** argv)
     }
 
     preprocess(data_alias, local_dims, params, phase_index);
+    mpitimer_stop(setup_time);
 
     // begin stepping in time
 
@@ -478,6 +481,7 @@ int main(int argc, char ** argv)
 
     if (rank == 0) {
         mpitimer_stop(total_time);
+        double total = mpitimer_get_time(total_time);
 
         int total_seconds = (int) mpitimer_get_time(total_time);
         int days = total_seconds / (60*60*24);
@@ -486,10 +490,12 @@ int main(int argc, char ** argv)
         int secs = ((total_seconds % (60*60*24)) % 3600) % 60;
 
         FILE_LOG(logINFO);
-        FILE_LOG(logINFO) << "Computation Time (%):   " << mpitimer_get_time(comp_time) / mpitimer_get_time(total_time) * 100;
-        FILE_LOG(logINFO) << "Communication Time (%): " << mpitimer_get_time(comm_time) / mpitimer_get_time(total_time) * 100;
-        FILE_LOG(logINFO) << "Input/Output Time (%):  " << mpitimer_get_time(io_time) / mpitimer_get_time(total_time) * 100;
-        FILE_LOG(logINFO) << "Total Time (s):     " << mpitimer_get_time(total_time);
+        FILE_LOG(logINFO).precision(2);
+        FILE_LOG(logINFO) << "Setup Time (%):         " << std::setw(5) << std::setprecision(2) << std::fixed << mpitimer_get_time(setup_time) / total * 100;
+        FILE_LOG(logINFO) << "Input/Output Time (%):  " << std::setw(5) << std::setprecision(2) << std::fixed << mpitimer_get_time(io_time) / total * 100;
+        FILE_LOG(logINFO) << "Communication Time (%): " << std::setw(5) << std::setprecision(2) << std::fixed << mpitimer_get_time(comm_time) / total * 100;
+        FILE_LOG(logINFO) << "Computation Time (%):   " << std::setw(5) << std::setprecision(2) << std::fixed << mpitimer_get_time(comp_time) / total * 100;
+        FILE_LOG(logINFO) << "Total Time (s):         " << total;
         FILE_LOG(logINFO) << "Elapsed Time: " << days << " days, " << hours << " hours, " << mins << " minutes, " << secs << " seconds";
     }
 
