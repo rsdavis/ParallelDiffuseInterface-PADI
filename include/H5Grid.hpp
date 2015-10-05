@@ -36,7 +36,7 @@ H5Grid :: H5Grid () {
 void H5Grid :: create_group(std::string path)
 {
     int start = 1;
-    int pos = 0;
+    size_t pos = 0;
     if (path[0]!='/') path = "/" + path;
 
     while ((pos = path.find("/", start)) != std::string::npos)
@@ -206,15 +206,17 @@ int H5Grid :: list(std::string path, std::vector<std::string> &list)
 
     hid_t group_id;
     H5G_info_t group_info;
+    int nlinks;
 
     // need to implement group existence check
 
     group_id = H5Gopen(m_file_id, path.c_str(), H5P_DEFAULT);
     H5Gget_info(group_id, &group_info);
+    nlinks = group_info.nlinks;
 
-    list.resize(group_info.nlinks);
+    list.resize(nlinks);
 
-    for (int i=0; i<group_info.nlinks; i++)
+    for (int i=0; i<nlinks; i++)
     {
         char name[256];
         H5Gget_objname_by_idx(group_id, i, name, 256);

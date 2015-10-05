@@ -2,6 +2,7 @@
 #ifndef SPF_MODEL_H
 #define SPF_MODEL_H
 
+#include <sstream>
 #include <iostream>
 #include <map>
 #include "preprocessor.hpp"
@@ -40,52 +41,7 @@ void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
 
 void postprocess(double ** phase, double ** chem_pot, double ** mobility, int * dims);
 
-template <typename T> // primary template
-inline void unpack(std::map<std::string, std::string> params, std::string name, T &parameter)
-{
-    FILE_LOG(logERROR) << "Cant unpack parameter of this type: " << name;
-    MPI_Abort(MPI_COMM_WORLD, 0);
-}
-
-template <> // explicit specialization for T = double
-inline void unpack(std::map<std::string, std::string> hash, std::string name, double & parameter)
-{
-    std::map<std::string, std::string>::iterator it;
-    it = hash.find(name);
-    if (it==hash.end()) { // parameter not found
-        FILE_LOG(logERROR) << "Parameter <" << name << "> not found"; 
-        MPI_Abort(MPI_COMM_WORLD, 0);
-    } else { // parameter found
-        parameter = std::stod(it->second);
-    }
-}
-
-template <> // explicit specialization for T = int
-inline void unpack(std::map<std::string, std::string> hash, std::string name, int & parameter)
-{
-    std::map<std::string, std::string>::iterator it;
-    it = hash.find(name);
-    if (it==hash.end()) { // parameter not found
-        FILE_LOG(logERROR) << "Parameter <" << name << "> not found"; 
-        MPI_Abort(MPI_COMM_WORLD, 0);
-    } else { // parameter found
-        parameter = std::stoi(it->second);
-    }
-}
-
-template <> // explicit specialization for T = float
-inline void unpack(std::map<std::string, std::string> hash, std::string name, float & parameter)
-{
-    std::map<std::string, std::string>::iterator it;
-    it = hash.find(name);
-    if (it==hash.end()) { // parameter not found
-        FILE_LOG(logERROR) << "Parameter <" << name << "> not found"; 
-        MPI_Abort(MPI_COMM_WORLD, 0);
-    } else { // parameter found
-        parameter = std::stof(it->second);
-    }
-}
-
+// unpack phase index
 inline void unpack(std::map<std::string, int> name_index, std::string name, int &index)
 {
     std::map<std::string, int>::iterator it;
@@ -95,6 +51,32 @@ inline void unpack(std::map<std::string, int> name_index, std::string name, int 
         MPI_Abort(MPI_COMM_WORLD, 0);
     } else { // parameter found
         index = it->second;
+    }
+}
+
+template<typename T>
+T string2number(const std::string str)
+{
+    T value;
+    std::stringstream stream(str);
+    stream >> value;
+    if ( stream.fail() ) {
+        FILE_LOG(logERROR) << "Error unpacking variables: " << str;
+        MPI_Abort(MPI_COMM_WORLD, 0);
+    }
+    return value;
+}
+
+template<typename T>
+void unpack( std::map<std::string, std::string> hash, std::string name, T & parameter  )
+{
+    std::map<std::string, std::string>::iterator it;
+    it = hash.find(name);
+    if ( it == hash.end() ) { // parameter not found
+        FILE_LOG(logERROR) << "Parameter <" << name << "> not found";
+        MPI_Abort(MPI_COMM_WORLD, 0);
+    } else {
+        parameter = string2number<T>(it->second);
     }
 }
 

@@ -99,7 +99,7 @@ MPIGrid :: ~MPIGrid()
 }
 
 template <typename T> 
-MPI_Datatype MPIGrid :: getMPI_Datatype() {}
+MPI_Datatype MPIGrid :: getMPI_Datatype() { return 0; }
 template <>
 MPI_Datatype MPIGrid :: getMPI_Datatype<double>() { return MPI_DOUBLE; }
 template <>
@@ -443,11 +443,12 @@ int MPIGrid :: share(T * const local_data)
         send_offset = (m_local_dims[i] - 2*m_nrows) * step; 
         recv_offset = 0;
 
+        MPI_Cart_shift(topology, i, 1, &source, &destination);
+
         // pack data
         for (int j=0; j<count; j++)
             memcpy(packed_send+block_length*j, local_data+send_offset+stride*j, block_length*sizeof(T));
 
-        MPI_Cart_shift(topology, i, 1, &source, &destination);
 
         MPI_Sendrecv(packed_send, count*block_length, getMPI_Datatype<T>(), destination, tag,
                      packed_recv, count*block_length, getMPI_Datatype<T>(), source, tag,

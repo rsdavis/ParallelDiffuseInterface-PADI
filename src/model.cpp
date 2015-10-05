@@ -48,6 +48,8 @@ void preprocess(double ** phase,  // order parameter data
     unpack(params, "a4", model::a4);
     unpack(params,  "w", model::w );
 
+    std::cout << model::a2 << std::endl;
+
 }
 
 void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
