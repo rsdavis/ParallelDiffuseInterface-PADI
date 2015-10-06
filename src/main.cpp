@@ -1,11 +1,11 @@
 
 #include <map>
 #include <fstream>
-#include <string>
 #include <iostream>
 #include <iomanip>
 #include <ctime>
 #include <algorithm> // std::remove
+#include <string.h>
 
 #include "log.h"
 #include "MPIGrid.hpp"
@@ -389,7 +389,7 @@ int main(int argc, char ** argv)
 
     // begin stepping in time
 
-    for (int istep=1; istep<=std::stoi(params["nsteps"]); istep++)
+    for (int istep=1; istep<=string2number<int>(params["nsteps"]); istep++)
     {
         FILE_LOG(logDEBUG) << "Step: " << istep;
 
@@ -403,11 +403,11 @@ int main(int argc, char ** argv)
             if (!nonshared[i]) grid.share(local_phase + local_volume*i);
         mpitimer_stop(comm_time);
 
-        if (rank==0 && std::stoi(params["nsteps"]) > 10 && istep % (std::stoi(params["nsteps"])/10) == 0)
-            updateLog(istep, std::stoi(params["nsteps"]), mpitimer_get_time(total_time));
+        if (rank==0 && string2number<int>(params["nsteps"]) > 10 && istep % (string2number<int>(params["nsteps"])/10) == 0)
+            updateLog(istep, string2number<int>(params["nsteps"]), mpitimer_get_time(total_time));
 
         // output
-        if (istep % std::stoi(params["output_frequency"]) == 0) {
+        if (istep % string2number<int>(params["output_frequency"]) == 0) {
 
             FILE_LOG(logDEBUG) << "Output";
             
@@ -422,7 +422,7 @@ int main(int argc, char ** argv)
                 buffer = new double [global_volume];
             }
 
-            frame = istep / std::stoi(params["output_frequency"]);
+            frame = istep / string2number<int>(params["output_frequency"]);
 
             // cycle through order parameters
             for (int i=0; i<nphases; i++) {
