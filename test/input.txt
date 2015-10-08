@@ -9,9 +9,9 @@ dt = 0.005
 
 
 init_file = spin_init.h5
-nsteps = 100
+nsteps = 10000
 
-output_frequency = 100
+output_frequency = 10000
 
 continue = 0
 

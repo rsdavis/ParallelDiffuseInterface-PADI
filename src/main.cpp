@@ -85,7 +85,7 @@ void logParameters(std::map<std::string, std::string> params)
 }
 
 void readGlobalData(std::string filename, 
-                    double *& global_phase, 
+                    SPF_DATATYPE *& global_phase, 
                     int * global_dims, 
                     std::vector<std::string> &name_list)
 {
@@ -131,7 +131,7 @@ void readGlobalData(std::string filename,
     FILE_LOG(logDEBUG) << "Allocating global data: " << vol;
 
     try {
-        global_phase = new double [vol*name_list.size()];
+        global_phase = new SPF_DATATYPE [vol*name_list.size()];
     } catch (std::bad_alloc &ba) {
         FILE_LOG(logERROR) << "Bad Alloc Global Data: " << ba.what();
         MPI_Abort(MPI_COMM_WORLD, 0);
@@ -215,10 +215,10 @@ int main(int argc, char ** argv)
     int local_dims[3] = {1,1,1};
     int np_dims[3];
 
-    double * global_phase;
-    double * local_phase;
-    double * local_chem_pot;
-    double * local_mobility;
+    SPF_DATATYPE * global_phase;
+    SPF_DATATYPE * local_phase;
+    SPF_DATATYPE * local_chem_pot;
+    SPF_DATATYPE * local_mobility;
 
     char * phase_names;
     int nphases;
@@ -317,9 +317,9 @@ int main(int argc, char ** argv)
         global_volume *= global_dims[i];
     }
 
-    local_phase = new double [local_volume*nphases];
-    local_chem_pot = new double [local_volume*nphases];
-    local_mobility = new double [local_volume*nphases];
+    local_phase = new SPF_DATATYPE [local_volume*nphases];
+    local_chem_pot = new SPF_DATATYPE [local_volume*nphases];
+    local_mobility = new SPF_DATATYPE [local_volume*nphases];
 
     // create map of names and index
     std::vector<std::string> nonsh = parse_by_comma(params["nonshared"]);
@@ -362,9 +362,9 @@ int main(int argc, char ** argv)
 
     // create alias for more user-friendly data access
 
-    double ** data_alias = new double * [nphases]; 
-    double ** chem_pot_alias = new double * [nphases];
-    double ** mobility_alias = new double * [nphases];
+    SPF_DATATYPE ** data_alias = new SPF_DATATYPE * [nphases]; 
+    SPF_DATATYPE ** chem_pot_alias = new SPF_DATATYPE * [nphases];
+    SPF_DATATYPE ** mobility_alias = new SPF_DATATYPE * [nphases];
 
     for (int i=0; i<nphases; i++)
     {
@@ -413,13 +413,13 @@ int main(int argc, char ** argv)
             
             H5Grid h5;
             int stat;
-            double * buffer; 
+            SPF_DATATYPE * buffer; 
             int frame;
             mpitimer_start(io_time);
 
             if (rank == 0) {
                 h5.open("strand.h5", "a");
-                buffer = new double [global_volume];
+                buffer = new SPF_DATATYPE [global_volume];
             }
 
             frame = istep / string2number<int>(params["output_frequency"]);

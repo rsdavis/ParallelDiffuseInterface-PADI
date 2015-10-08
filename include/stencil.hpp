@@ -45,11 +45,11 @@ class Stencil {
     public:
 
         inline void setup(int * dims, double dx);
-        inline double laplacian_h2(double * data, int ndx);
-        inline double laplacian_h4(double * data, int ndx);
-        inline double grad_norm(double * data, int ndx);
-        inline double grad_sq(double * data, int ndx);
-        inline double div_A_grad_B(double * A, double * B, int ndx);
+        inline SPF_DATATYPE laplacian_h2 (SPF_DATATYPE * data, int ndx);
+        inline SPF_DATATYPE laplacian_h4 (SPF_DATATYPE * data, int ndx);
+        inline SPF_DATATYPE grad_norm    (SPF_DATATYPE * data, int ndx);
+        inline SPF_DATATYPE grad_sq      (SPF_DATATYPE * data, int ndx);
+        inline SPF_DATATYPE div_A_grad_B (SPF_DATATYPE * A, SPF_DATATYPE * B, int ndx);
 
 };
 
@@ -91,10 +91,10 @@ inline void Stencil :: setup(int * dims, double dx)
 }
 
 #if SPF_NDIMS == 3
-inline double Stencil :: laplacian_h2(double * data, int ndx)
+inline SPF_DATATYPE Stencil :: laplacian_h2(SPF_DATATYPE * data, int ndx)
 {
-    double * ptr = data + ndx;
-    double lap = *(ptr + XPY0Z0)
+    SPF_DATATYPE * ptr = data + ndx;
+    SPF_DATATYPE lap = *(ptr + XPY0Z0)
                + *(ptr + XMY0Z0)
                + *(ptr + X0YPZ0)
                + *(ptr + X0YMZ0)
@@ -105,10 +105,10 @@ inline double Stencil :: laplacian_h2(double * data, int ndx)
 }
 
 #elif SPF_NDIMS == 2
-inline double Stencil :: laplacian_h2(double * data, int ndx)
+inline SPF_DATATYPE Stencil :: laplacian_h2(SPF_DATATYPE * data, int ndx)
 {
-    double * ptr = data + ndx;
-    double lap = *(ptr + XPY0Z0)
+    SPF_DATATYPE * ptr = data + ndx;
+    SPF_DATATYPE lap = *(ptr + XPY0Z0)
                + *(ptr + XMY0Z0)
                + *(ptr + X0YPZ0)
                + *(ptr + X0YMZ0)
@@ -118,10 +118,10 @@ inline double Stencil :: laplacian_h2(double * data, int ndx)
 #endif
 
 #if SPF_NDIMS == 2
-inline double Stencil :: laplacian_h4(double * data, int ndx)
+inline SPF_DATATYPE Stencil :: laplacian_h4(SPF_DATATYPE * data, int ndx)
 {
-    double * ptr = data + ndx;
-    double lap = *(ptr + XPY0Z0)*4
+    SPF_DATATYPE * ptr = data + ndx;
+    SPF_DATATYPE lap = *(ptr + XPY0Z0)*4
                + *(ptr + XMY0Z0)*4
                + *(ptr + X0YPZ0)*4
                + *(ptr + X0YMZ0)*4
@@ -133,10 +133,10 @@ inline double Stencil :: laplacian_h4(double * data, int ndx)
     return lap*inv_dx_sq/6.0;
 }
 #elif SPF_NDIMS == 3
-inline double Stencil :: laplacian_h4(double * data, int ndx)
+inline SPF_DATATYPE Stencil :: laplacian_h4(SPF_DATATYPE * data, int ndx)
 {
-    double * ptr = data + ndx;
-    double lap = 
+    SPF_DATATYPE * ptr = data + ndx;
+    SPF_DATATYPE lap = 
                - *(ptr + X0Y0Z0)*24
                + *(ptr + XPY0Z0)*2
                + *(ptr + XMY0Z0)*2
@@ -164,98 +164,98 @@ inline double Stencil :: laplacian_h4(double * data, int ndx)
 #endif
 
 #if SPF_NDIMS == 2
-inline double Stencil :: grad_norm(double * data, int ndx)
+inline SPF_DATATYPE Stencil :: grad_norm(SPF_DATATYPE * data, int ndx)
 {
-    double * ptr = data + ndx;
-    double grad_x = *(ptr + XPY0Z0) - *(ptr + XMY0Z0);
-    double grad_y = *(ptr + X0YPZ0) - *(ptr + X0YMZ0);
+    SPF_DATATYPE * ptr = data + ndx;
+    SPF_DATATYPE grad_x = *(ptr + XPY0Z0) - *(ptr + XMY0Z0);
+    SPF_DATATYPE grad_y = *(ptr + X0YPZ0) - *(ptr + X0YMZ0);
 
     return 0.5*inv_dx*sqrt(grad_x*grad_x + grad_y*grad_y);
 }
 #elif SPF_NDIMS == 3
-inline double Stencil :: grad_norm(double * data, int ndx)
+inline SPF_DATATYPE Stencil :: grad_norm(SPF_DATATYPE * data, int ndx)
 {
-    double * ptr = data + ndx;
-    double grad_x = *(ptr + XPY0Z0) - *(ptr + XMY0Z0);
-    double grad_y = *(ptr + X0YPZ0) - *(ptr + X0YMZ0);
-    double grad_z = *(ptr + X0Y0ZP) - *(ptr + X0Y0ZM);
+    SPF_DATATYPE * ptr = data + ndx;
+    SPF_DATATYPE grad_x = *(ptr + XPY0Z0) - *(ptr + XMY0Z0);
+    SPF_DATATYPE grad_y = *(ptr + X0YPZ0) - *(ptr + X0YMZ0);
+    SPF_DATATYPE grad_z = *(ptr + X0Y0ZP) - *(ptr + X0Y0ZM);
 
     return 0.5*inv_dx*sqrt(grad_x*grad_x + grad_y*grad_y + grad_z*grad_z);
 }
 #endif
 
 #if SPF_NDIMS == 2
-inline double Stencil :: grad_sq(double * data, int ndx)
+inline SPF_DATATYPE Stencil :: grad_sq(SPF_DATATYPE * data, int ndx)
 {
-    double * ptr = data + ndx;
-    double grad_x = *(ptr + XPY0Z0) - *(ptr + XMY0Z0);
-    double grad_y = *(ptr + X0YPZ0) - *(ptr + X0YMZ0);
+    SPF_DATATYPE * ptr = data + ndx;
+    SPF_DATATYPE grad_x = *(ptr + XPY0Z0) - *(ptr + XMY0Z0);
+    SPF_DATATYPE grad_y = *(ptr + X0YPZ0) - *(ptr + X0YMZ0);
 
     return 0.25*inv_dx_sq*(grad_x*grad_x + grad_y*grad_y);
 }
 #elif SPF_NDIMS == 3
-inline double Stencil :: grad_sq(double * data, int ndx)
+inline SPF_DATATYPE Stencil :: grad_sq(SPF_DATATYPE * data, int ndx)
 {
-    double * ptr = data + ndx;
-    double grad_x = *(ptr + XPY0Z0) - *(ptr + XMY0Z0);
-    double grad_y = *(ptr + X0YPZ0) - *(ptr + X0YMZ0);
-    double grad_z = *(ptr + X0Y0ZP) - *(ptr + X0Y0ZM);
+    SPF_DATATYPE * ptr = data + ndx;
+    SPF_DATATYPE grad_x = *(ptr + XPY0Z0) - *(ptr + XMY0Z0);
+    SPF_DATATYPE grad_y = *(ptr + X0YPZ0) - *(ptr + X0YMZ0);
+    SPF_DATATYPE grad_z = *(ptr + X0Y0ZP) - *(ptr + X0Y0ZM);
 
     return 0.25*inv_dx_sq*(grad_x*grad_x + grad_y*grad_y + grad_z*grad_z);
 }
 #endif
 
 #if SPF_NDIMS==3
-inline double Stencil :: div_A_grad_B(double * A, double * B, int ndx)
+inline SPF_DATATYPE Stencil :: div_A_grad_B(SPF_DATATYPE * A, SPF_DATATYPE * B, int ndx)
 {
 
-    double * a = A + ndx;
-    double * b = B + ndx;
+    SPF_DATATYPE * a = A + ndx;
+    SPF_DATATYPE * b = B + ndx;
 
-    double axp = *(a+XPY0Z0) + *(a+X0Y0Z0);
-    double axm = *(a+X0Y0Z0) + *(a+XMY0Z0);
+    SPF_DATATYPE axp = *(a+XPY0Z0) + *(a+X0Y0Z0);
+    SPF_DATATYPE axm = *(a+X0Y0Z0) + *(a+XMY0Z0);
 
-    double ayp = *(a+X0YPZ0) + *(a+X0Y0Z0);
-    double aym = *(a+X0Y0Z0) + *(a+X0YMZ0);
+    SPF_DATATYPE ayp = *(a+X0YPZ0) + *(a+X0Y0Z0);
+    SPF_DATATYPE aym = *(a+X0Y0Z0) + *(a+X0YMZ0);
 
-    double azp = *(a+X0Y0ZP) + *(a+X0Y0Z0);
-    double azm = *(a+X0Y0Z0) + *(a+X0Y0ZM);
+    SPF_DATATYPE azp = *(a+X0Y0ZP) + *(a+X0Y0Z0);
+    SPF_DATATYPE azm = *(a+X0Y0Z0) + *(a+X0Y0ZM);
 
-    double divx = axp * ( *(b+XPY0Z0) - *(b + X0Y0Z0) ) -
+    SPF_DATATYPE divx = axp * ( *(b+XPY0Z0) - *(b + X0Y0Z0) ) -
                   axm * ( *(b+X0Y0Z0) - *(b + XMY0Z0) );
 
-    double divy = ayp * ( *(b+X0YPZ0) - *(b + X0Y0Z0) ) -
+    SPF_DATATYPE divy = ayp * ( *(b+X0YPZ0) - *(b + X0Y0Z0) ) -
                   aym * ( *(b+X0Y0Z0) - *(b + X0YMZ0) );
 
-    double divz = azp * ( *(b+X0Y0ZP) - *(b + X0Y0Z0) ) -
+    SPF_DATATYPE divz = azp * ( *(b+X0Y0ZP) - *(b + X0Y0Z0) ) -
                   azm * ( *(b+X0Y0Z0) - *(b + X0Y0ZM) );
 
-    double ddt = inv_dx_sq * 0.5 * (divx + divy + divz);
+    SPF_DATATYPE ddt = inv_dx_sq * 0.5 * (divx + divy + divz);
 
     return ddt;
 
 }    
 
 #elif SPF_NDIMS==2
-inline double Stencil :: div_A_grad_B(double * A, double * B, int ndx)
+inline SPF_DATATYPE Stencil :: div_A_grad_B(SPF_DATATYPE * A, SPF_DATATYPE * B, int ndx)
 {
 
-    double * a = A + ndx;
-    double * b = B + ndx;
+    SPF_DATATYPE * a = A + ndx;
+    SPF_DATATYPE * b = B + ndx;
 
-    double axp = *(a+XPY0Z0) + *(a+X0Y0Z0);
-    double axm = *(a+X0Y0Z0) + *(a+XMY0Z0);
+    SPF_DATATYPE axp = *(a+XPY0Z0) + *(a+X0Y0Z0);
+    SPF_DATATYPE axm = *(a+X0Y0Z0) + *(a+XMY0Z0);
 
-    double ayp = *(a+X0YPZ0) + *(a+X0Y0Z0);
-    double aym = *(a+X0Y0Z0) + *(a+X0YMZ0);
+    SPF_DATATYPE ayp = *(a+X0YPZ0) + *(a+X0Y0Z0);
+    SPF_DATATYPE aym = *(a+X0Y0Z0) + *(a+X0YMZ0);
 
-    double divx = axp * ( *(b+XPY0Z0) - *(b + X0Y0Z0) ) -
+    SPF_DATATYPE divx = axp * ( *(b+XPY0Z0) - *(b + X0Y0Z0) ) -
                   axm * ( *(b+X0Y0Z0) - *(b + XMY0Z0) );
 
-    double divy = ayp * ( *(b+X0YPZ0) - *(b + X0Y0Z0) ) -
+    SPF_DATATYPE divy = ayp * ( *(b+X0YPZ0) - *(b + X0Y0Z0) ) -
                   aym * ( *(b+X0Y0Z0) - *(b + X0YMZ0) );
 
-    double ddt = inv_dx_sq * 0.5 * (divx + divy);
+    SPF_DATATYPE ddt = inv_dx_sq * 0.5 * (divx + divy);
 
     return ddt;
 

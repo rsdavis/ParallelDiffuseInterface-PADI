@@ -55,13 +55,16 @@ class MPIGrid {
         template <typename T>
         int share(T * const local_data);
 
+        template <typename T>
+        int share(T * const local_data, int nfields);
+
 };
 
 template<typename T>
 void MPIGrid :: pack_data(T const * const data, T * const pack, int * count, int * block_length, int * stride, int ndims)
 {
     if (ndims == 1) {
-        memcpy(pack, data, count[0]*sizeof(double));
+        memcpy(pack, data, count[0]*sizeof(T));
         return;
     }
 
@@ -73,7 +76,7 @@ template<typename T>
 void MPIGrid :: unpack_data(T * const data, T const * const pack, int * count, int * block_length, int * stride, int ndims)
 {
     if (ndims == 1) {
-        memcpy(data, pack, count[0]*sizeof(double));
+        memcpy(data, pack, count[0]*sizeof(T));
         return;
     }
 
@@ -99,7 +102,7 @@ MPIGrid :: ~MPIGrid()
 }
 
 template <typename T> 
-MPI_Datatype MPIGrid :: getMPI_Datatype() { return 0; }
+MPI_Datatype MPIGrid :: getMPI_Datatype() {}
 template <>
 MPI_Datatype MPIGrid :: getMPI_Datatype<double>() { return MPI_DOUBLE; }
 template <>
@@ -443,12 +446,11 @@ int MPIGrid :: share(T * const local_data)
         send_offset = (m_local_dims[i] - 2*m_nrows) * step; 
         recv_offset = 0;
 
-        MPI_Cart_shift(topology, i, 1, &source, &destination);
-
         // pack data
         for (int j=0; j<count; j++)
             memcpy(packed_send+block_length*j, local_data+send_offset+stride*j, block_length*sizeof(T));
 
+        MPI_Cart_shift(topology, i, 1, &source, &destination);
 
         MPI_Sendrecv(packed_send, count*block_length, getMPI_Datatype<T>(), destination, tag,
                      packed_recv, count*block_length, getMPI_Datatype<T>(), source, tag,
@@ -476,6 +478,112 @@ int MPIGrid :: share(T * const local_data)
         // unpack data
         for (int j=0; j<count; j++)
             memcpy(local_data+recv_offset+stride*j, packed_recv+block_length*j, block_length*sizeof(T));
+
+        delete [] packed_send;
+        delete [] packed_recv;
+    }
+
+    return 0;
+
+}
+
+template <typename T>
+int MPIGrid :: share(T * const local_data, int nfields)
+{
+
+    /// This function communicates ghost rows to neighboring processes
+    
+    /**
+    Each process calls this function.
+    All of the ghost row information is shared, the number of rows was indicated at setup.
+    */
+
+    /**
+    @param [in,out] local_data pointer to the first element of the local data
+    */
+
+    for (int i=0; i<m_ndims; i++)
+    {
+        int tag = 1;
+        int local_vol = 1;
+        int source, destination;
+        MPI_Status status;
+
+        int count = 1;
+        int block_length = m_nrows;
+        int stride = 1;
+        int step = 1;
+
+        int send_offset;
+        int recv_offset;
+
+        for (int j=0; j<m_ndims; j++)
+            local_vol *= m_local_dims[j];
+
+        for (int j=0; j<i; j++)
+            count *= m_local_dims[j];
+
+        for (int j=i+1; j<m_ndims; j++)
+            block_length *= m_local_dims[j];
+
+        for (int j=i; j<m_ndims; j++)
+            stride *= m_local_dims[j];
+
+        for (int j=i+1; j<m_ndims; j++)
+            step *= m_local_dims[j];
+
+        T * packed_send = new T [count*block_length*nfields];
+        T * packed_recv = new T [count*block_length*nfields];
+
+        /* =========== SENDRECV POSITIVE DIRECTION =================== */
+
+        send_offset = (m_local_dims[i] - 2*m_nrows) * step; 
+        recv_offset = 0;
+
+        // pack data
+        for (int f=0; f<nfields; f++)
+        for (int j=0; j<count; j++)
+            memcpy(packed_send+block_length*j+count*block_length*f, 
+                   local_data+send_offset+stride*j+local_vol*f,
+                   block_length*sizeof(T));
+
+        MPI_Cart_shift(topology, i, 1, &source, &destination);
+
+        MPI_Sendrecv(packed_send, count*block_length*nfields, getMPI_Datatype<T>(), destination, tag,
+                     packed_recv, count*block_length*nfields, getMPI_Datatype<T>(), source, tag,
+                     topology, &status);
+
+        // unpack data
+        for (int f=0; f<nfields; f++)
+        for (int j=0; j<count; j++)
+            memcpy(local_data+recv_offset+stride*j+local_vol*f, 
+                   packed_recv+block_length*j+count*block_length*f,
+                   block_length*sizeof(T));
+
+        /* =========== SENDRECV NEGATIVE DIRECTION =================== */
+
+        send_offset = m_nrows * step; 
+        recv_offset = (m_local_dims[i] - m_nrows) * step;
+
+        // pack data
+        for (int f=0; f<nfields; f++)
+        for (int j=0; j<count; j++)
+            memcpy(packed_send+block_length*j+count*block_length*f, 
+                   local_data+send_offset+stride*j+local_vol*f,
+                   block_length*sizeof(T));
+
+        MPI_Cart_shift(topology, i, -1, &source, &destination);
+
+        MPI_Sendrecv(packed_send, count*block_length*nfields, getMPI_Datatype<T>(), destination, tag,
+                     packed_recv, count*block_length*nfields, getMPI_Datatype<T>(), source, tag,
+                     topology, &status);
+
+        // unpack data
+        for (int f=0; f<nfields; f++)
+        for (int j=0; j<count; j++)
+            memcpy(local_data+recv_offset+stride*j+local_vol*f, 
+                   packed_recv+block_length*j+count*block_length*f,
+                   block_length*sizeof(T));
 
         delete [] packed_send;
         delete [] packed_recv;

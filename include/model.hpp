@@ -33,13 +33,13 @@
 #define calc_ijk_index() i*dims[1]*dims[2] + j*dims[2] + k
 #endif
 
-void preprocess(double ** phase, int * dims,
+void preprocess(SPF_DATATYPE ** phase, int * dims,
                 std::map<std::string, std::string> params,
                 std::map<std::string, int> name_index);
 
-void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims);
+void kernel(SPF_DATATYPE ** phase, SPF_DATATYPE ** chem_pot, SPF_DATATYPE ** mobility, int * dims);
 
-void postprocess(double ** phase, double ** chem_pot, double ** mobility, int * dims);
+void postprocess(SPF_DATATYPE ** phase, SPF_DATATYPE ** chem_pot, SPF_DATATYPE ** mobility, int * dims);
 
 // unpack phase index
 inline void unpack(std::map<std::string, int> name_index, std::string name, int &index)

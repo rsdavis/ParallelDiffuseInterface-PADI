@@ -8,6 +8,8 @@ class H5Grid {
     private:
         hid_t m_file_id;
 
+        template <typename T>
+        hid_t getH5_Datatype();
         void create_group(std::string path);
         void parse (std::string attr_name, std::string &path, std::string &name);
 
@@ -16,18 +18,35 @@ class H5Grid {
         H5Grid();
 
         int open(std::string filename, std::string mode);
-        int read_dataset(std::string dataset_name, double * dataset);
-        int write_dataset(std::string dataset_name, double * dataset, int * dims, int ndims);
+
+        template <typename T>
+        int read_dataset(std::string dataset_name, T * dataset);
+
+        template <typename T>
+        int write_dataset(std::string dataset_name, T * dataset, int * dims, int ndims);
 
         int get_ndims(std::string dataset_name, int &ndims);
         int get_dims(std::string dataset_name, int * dims);
 
         int list(std::string path, std::vector<std::string> &list);
-        int set_attribute(std::string attr_name, int  attr_value);
-        int get_attribute(std::string attr_name, int &attr_value);
+        template <typename T>
+        int set_attribute(std::string attr_name, T  attr_value);
+        template <typename T>
+        int get_attribute(std::string attr_name, T &attr_value);
 
         int close();
 };
+
+template <typename T>
+hid_t H5Grid :: getH5_Datatype() {}
+template <>
+hid_t H5Grid :: getH5_Datatype<double>() { return H5T_NATIVE_DOUBLE; }
+template <>
+hid_t H5Grid :: getH5_Datatype<float>() { return H5T_NATIVE_FLOAT; }
+template <>
+hid_t H5Grid :: getH5_Datatype<int>() { return H5T_NATIVE_INT; }
+template <>
+hid_t H5Grid :: getH5_Datatype<unsigned int>() { return H5T_NATIVE_UINT; }
 
 H5Grid :: H5Grid () {
     m_file_id = 0;
@@ -95,7 +114,8 @@ int H5Grid :: open(std::string filename, std::string mode)
     return 0;
 }
 
-int H5Grid :: write_dataset(std::string dataset_name, double * dataset, int * dims, int ndims)
+template <typename T>
+int H5Grid :: write_dataset(std::string dataset_name, T * dataset, int * dims, int ndims)
 {
 
     hid_t data_id;
@@ -121,7 +141,7 @@ int H5Grid :: write_dataset(std::string dataset_name, double * dataset, int * di
         space_id = H5Screate_simple(h5_ndims, h5_dims, NULL);
         data_id = H5Dcreate(m_file_id,
                             dataset_name.c_str(),
-                            H5T_NATIVE_DOUBLE,
+                            getH5_Datatype<T>(),
                             space_id,
                             H5P_DEFAULT,
                             dcpl_id,
@@ -135,7 +155,7 @@ int H5Grid :: write_dataset(std::string dataset_name, double * dataset, int * di
     }
 
     error = H5Dwrite(data_id,
-                     H5T_NATIVE_DOUBLE,
+                     getH5_Datatype<T>(),
                      H5S_ALL,
                      H5S_ALL,
                      H5P_DEFAULT,
@@ -183,13 +203,14 @@ int H5Grid :: get_dims(std::string dataset_name, int * dims)
     return 0;
 }
 
-int H5Grid :: read_dataset(std::string dataset_name, double * dataset)
+template <typename T>
+int H5Grid :: read_dataset(std::string dataset_name, T * dataset)
 {
     hid_t data_id;
     herr_t error;
 
     data_id = H5Dopen(m_file_id, dataset_name.c_str(), H5P_DEFAULT);
-    error = H5Dread(data_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset);
+    error = H5Dread(data_id, getH5_Datatype<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset);
     if (error < 0) return 1;
 
     H5Dclose(data_id);
@@ -229,7 +250,8 @@ int H5Grid :: list(std::string path, std::vector<std::string> &list)
     return 0;
 }
 
-int H5Grid :: set_attribute(std::string attr_name, int  attr_value)
+template <typename T>
+int H5Grid :: set_attribute(std::string attr_name, T  attr_value)
 {
     /**
     * @param attr_name Name/address of the attribute
@@ -257,20 +279,21 @@ int H5Grid :: set_attribute(std::string attr_name, int  attr_value)
     hid_t attr_id = H5Acreate_by_name(m_file_id, 
                               path.c_str(),
                               name.c_str(), 
-                              H5T_NATIVE_INT, 
+                              getH5_Datatype<T>(), 
                               space_id, 
                               H5P_DEFAULT, 
                               H5P_DEFAULT,
                               H5P_DEFAULT);
 
-    H5Awrite(attr_id, H5T_NATIVE_INT, &attr_value);
+    H5Awrite(attr_id, getH5_Datatype<T>(), &attr_value);
     H5Aclose(attr_id);
     H5Sclose(space_id);
 
     return 0;
 }
 
-int H5Grid :: get_attribute(std::string attr_name, int &attr_value)
+template <typename T>
+int H5Grid :: get_attribute(std::string attr_name, T &attr_value)
 {
     /**
     * @param attr_name Name/address of the attribute
@@ -288,7 +311,7 @@ int H5Grid :: get_attribute(std::string attr_name, int &attr_value)
     if (H5Aexists_by_name(m_file_id, path.c_str(), name.c_str(), H5P_DEFAULT) <= 0) return 1;
 
     attr_id = H5Aopen_by_name(m_file_id, path.c_str(), name.c_str(), H5P_DEFAULT, H5P_DEFAULT);
-    H5Aread(attr_id, H5T_NATIVE_INT, &attr_value);
+    H5Aread(attr_id, getH5_Datatype<T>(), &attr_value);
 
     H5Aclose(attr_id);
 

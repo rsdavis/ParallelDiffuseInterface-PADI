@@ -21,7 +21,7 @@ namespace model
 /** model-specific functions can be included here */
 
 
-void preprocess(double ** phase,  // order parameter data
+void preprocess(SPF_DATATYPE ** phase,  // order parameter data
                 int * dims,       // system dimensions
                 std::map<std::string, std::string> params, // input file parameters
                 std::map<std::string, int> phase_index)     // phase indices
@@ -48,11 +48,9 @@ void preprocess(double ** phase,  // order parameter data
     unpack(params, "a4", model::a4);
     unpack(params,  "w", model::w );
 
-    std::cout << model::a2 << std::endl;
-
 }
 
-void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
+void kernel(SPF_DATATYPE ** phase, SPF_DATATYPE ** chem_pot, SPF_DATATYPE ** mobility, int * dims)
 {
     /**
     The kernel is run at every timestep and should include all calculations 
@@ -105,7 +103,7 @@ void kernel(double ** phase, double ** chem_pot, double ** mobility, int * dims)
 }
 
 
-void postprocess(double ** phase, double ** chem_pot, double ** mobility, int * dims)
+void postprocess(SPF_DATATYPE ** phase, SPF_DATATYPE ** chem_pot, SPF_DATATYPE ** mobility, int * dims)
 {
 
     /**
