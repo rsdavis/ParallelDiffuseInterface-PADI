@@ -286,11 +286,20 @@ int main(int argc, char ** argv)
     // setup grid
 
     MPI_Bcast(&global_dims, 3, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&np_dims, 3, MPI_INT, 0, MPI_COMM_WORLD);
 
     MPIGrid grid;
-    for (int i=0; i<SPF_NDIMS; i++) np_dims[i] = 0;
-    MPI_Dims_create(np, SPF_NDIMS, np_dims);
+
+    // figure out the processor dimensions
+    if (argc == 1) { // no user input, let MPI decide
+        for (int i=0; i<SPF_NDIMS; i++) np_dims[i] = 0;
+        MPI_Dims_create(np, SPF_NDIMS, np_dims);
+    } else if (argc == SPF_NDIMS+1) { // use the user input
+        for (int i=0; i<SPF_NDIMS; i++) np_dims[i] = atoi(argv[i+1]);
+    } else { // something is wrong
+        FILE_LOG(logERROR) << "Processor dimension input doesnt match simulation dimension";
+        MPI_Abort(MPI_COMM_WORLD, 0);
+    }
+
     err = grid.setup(MPI_COMM_WORLD, global_dims, np_dims, SPF_NDIMS, SPF_NROWS, local_dims);
     if (err > 0) {
         FILE_LOG(logERROR) << "MPIGRID SETUP CODE: " << err;
