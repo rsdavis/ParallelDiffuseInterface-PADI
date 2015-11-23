@@ -1,8 +1,8 @@
-# SimplePhaseField
+# PArallel Diffuse Interface Software (PADI)
 A simple and user friendly simulation code designed for use in phase field methods.
 
 ## Introduction
-SimplePhaseField enables a user to implement their specific phase field model into a larger code-base.
+PADI enables a user to implement their specific phase field model into a larger code-base.
 It is generic enough to accomodate the majority of phase field models, yet simple enough for scientific researchers to easily jump in and begin simulating.
 
 The features include:
@@ -20,7 +20,7 @@ The user modifies the compute kernel to implement the calculation required for t
 This kernel plugs into the larger code base which handles the parallelization, input/output, logging, error handling, etc.
 
 ## Install
-SimplePhaseField requires that both the MPI and HDF5 libraries be installed on the system. 
+PADI requires that both the MPI and HDF5 libraries be installed on the system. 
 Once these are installed, modify the Makefile so that the mpi and hdf5 variables contain the appropriate paths to these libraries. 
 Run make.
 
